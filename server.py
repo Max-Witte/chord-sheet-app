@@ -34,6 +34,7 @@ def root():
     return {"status": "Chord Sheet backend is running!"}
 
 
+
 @app.get("/debug")
 def debug():
     import os
