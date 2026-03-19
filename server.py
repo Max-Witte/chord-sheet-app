@@ -34,14 +34,6 @@ def root():
     return {"status": "Chord Sheet backend is running!"}
 
 
-
-@app.get("/debug")
-def debug():
-    import os
-    all_vars = {k: v[:4] + "..." for k, v in os.environ.items()}
-    return all_vars
-
-
 @app.post("/from-url")
 async def process_youtube_url(req: YouTubeRequest):
     """
