@@ -3,6 +3,7 @@ import json
 import re
 import requests
 from functools import lru_cache
+from scraper import search_ug, fetch_ug_chords
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -44,14 +45,13 @@ def _parse_json(text):
     return json.loads(text.strip())
 
 
-def _fetch_lyrics(artist, title):
-    """Fetch real lyrics from lyrics.ovh — free, no API key needed."""
+def _fetch_lyrics_ovh(artist, title):
+    """Fetch real lyrics from lyrics.ovh as fallback."""
     try:
         url = f"https://api.lyrics.ovh/v1/{requests.utils.quote(artist)}/{requests.utils.quote(title)}"
         res = requests.get(url, timeout=8)
         if res.ok:
-            data = res.json()
-            lyrics = data.get("lyrics", "").strip()
+            lyrics = res.json().get("lyrics", "").strip()
             if lyrics:
                 print(f"Got lyrics from lyrics.ovh ({len(lyrics)} chars)")
                 return lyrics
@@ -60,22 +60,18 @@ def _fetch_lyrics(artist, title):
     return None
 
 
-def _add_chords_to_lyrics(title, artist, lyrics, key_bpm_hint=""):
+def _gemini_chords_from_lyrics(title, artist, lyrics):
     """Ask Gemini to annotate real lyrics with chords."""
-    prompt = f"""You are a music expert and guitarist/pianist. 
-Your job is to add chord annotations to the lyrics of "{title}" by {artist}.
+    prompt = f"""You are a music expert. Add chord annotations to the lyrics of "{title}" by {artist}.
 
-Here are the REAL lyrics — do NOT change any words, do NOT add or remove lines:
+Here are the REAL lyrics — do NOT change any words:
 
 {lyrics}
 
-Add chord markers in [X] format immediately before the word/syllable where the chord changes.
-For example: "[C]Twinkle twinkle [Am]little [F]star"
+Add chord markers [X] immediately before the word/syllable where the chord changes.
+Identify song sections (Verse 1, Chorus, Bridge etc.)
 
-Also identify the song sections (Verse 1, Chorus, Bridge etc.) and group lines accordingly.
-
-Return ONLY valid JSON, no markdown, no explanation:
-
+Return ONLY valid JSON:
 {{
   "title": "{title}",
   "artist": "{artist}",
@@ -84,43 +80,45 @@ Return ONLY valid JSON, no markdown, no explanation:
   "sections": [
     {{
       "label": "Verse 1",
-      "lines": [
-        "[C]I will leave my [Am]heart at the [F]door",
-        "[G]I won't say a word"
-      ]
-    }},
-    {{
-      "label": "Chorus",
-      "lines": [
-        "[F]All I [C]ask"
-      ]
+      "lines": ["[C]I will [G/B]leave my [Am]heart at the [G]door"]
     }}
   ]
 }}
 
 Rules:
-- Use the EXACT lyrics provided above — word for word
-- Place [chord] markers where chord changes happen on that syllable
+- Use the EXACT lyrics provided — word for word
 - Every line must have at least one chord marker
-- Standard chord notation: C, Dm, Em, F, G, Am, Bm, C#, F#, Bb, Eb, G/B, C/E etc.
-- Identify all sections correctly
+- Standard notation: C, Dm, Em, F, G, Am, G/B, C/E, F#, Bb etc.
 """
-    return _call_gemini(prompt)
+    raw = _call_gemini(prompt)
+    return _parse_json(raw)
+
+
+def _gemini_fallback(title, artist):
+    """Full Gemini fallback when everything else fails."""
+    prompt = f"""Produce a complete chord sheet for "{title}" by {artist}.
+Use inline chord markers [X] before each syllable where chord changes.
+Return ONLY valid JSON:
+{{
+  "title": "{title}",
+  "artist": "{artist}",
+  "key": "C",
+  "bpm": 120,
+  "sections": [{{"label": "Verse 1", "lines": ["[C]example [Am]line"]}}]
+}}"""
+    raw = _call_gemini(prompt)
+    return _parse_json(raw)
 
 
 def search_songs(query):
-    """Return all songs Gemini knows for the query."""
+    """Return songs matching the query."""
     prompt = f"""You are a music database. The user searched for: "{query}"
 
-Determine if this is a song title or artist name search, then return matching songs.
-
 Return ONLY valid JSON, no markdown:
-
 {{
   "type": "song",
   "artist_name": null,
   "results": [
-    {{"title": "Song Title", "artist": "Artist Name"}},
     {{"title": "Song Title", "artist": "Artist Name"}}
   ]
 }}
@@ -129,7 +127,7 @@ Rules:
 - Return as many results as you know — no limit
 - If artist name: return their most popular songs, set type to "artist" and artist_name to the artist
 - If song title: return best matching songs, type stays "song"
-- Only include real, well-known songs you are confident exist
+- Only include real songs you are confident exist
 - Order by popularity
 """
     raw = _call_gemini(prompt)
@@ -139,36 +137,62 @@ Rules:
         raise RuntimeError(f"Failed to parse search results: {e}\nRaw: {raw[:300]}")
 
 
+def get_ug_versions(title, artist):
+    """Get available UG chord sheet versions for a song."""
+    return search_ug(title, artist)
+
+
 @lru_cache(maxsize=100)
-def get_lyrics_and_chords(title, artist):
+def get_lyrics_and_chords(title, artist, ug_url=None):
     """
-    1. Fetch real lyrics from lyrics.ovh
-    2. Send to Gemini to annotate with chords
+    1. Try Ultimate Guitar (most accurate)
+    2. Fall back to lyrics.ovh + Gemini chord annotation
+    3. Fall back to pure Gemini
     """
-    # Step 1: get real lyrics
-    lyrics = _fetch_lyrics(artist, title)
+    # Step 1: Try UG
+    if ug_url:
+        print(f"Fetching UG chords from: {ug_url}")
+        ug_result = fetch_ug_chords(ug_url)
+        if ug_result and ug_result.get("sections"):
+            return {
+                "title": title,
+                "artist": artist,
+                "key": ug_result.get("key", ""),
+                "bpm": ug_result.get("bpm"),
+                "source": "ultimate-guitar",
+                "sections": ug_result["sections"],
+            }
 
-    if not lyrics:
-        print("lyrics.ovh returned nothing, falling back to Gemini-generated lyrics")
-        # Fallback: let Gemini do everything (less accurate but better than nothing)
-        prompt = f"""You are a music expert. Produce a complete chord sheet for "{title}" by {artist}.
-Use inline chord markers [X] before the syllable where the chord is played.
-Return ONLY valid JSON:
-{{
-  "title": "{title}",
-  "artist": "{artist}",
-  "key": "C",
-  "bpm": 120,
-  "sections": [
-    {{"label": "Verse 1", "lines": ["[C]example [Am]line"]}}
-  ]
-}}"""
-        raw = _call_gemini(prompt)
-    else:
-        # Step 2: annotate real lyrics with chords
-        raw = _add_chords_to_lyrics(title, artist, lyrics)
+    # Try searching UG automatically
+    print("Searching UG automatically...")
+    versions = search_ug(title, artist)
+    if versions:
+        best = versions[0]
+        ug_result = fetch_ug_chords(best["url"])
+        if ug_result and ug_result.get("sections"):
+            return {
+                "title": title,
+                "artist": artist,
+                "key": ug_result.get("key", best.get("key", "")),
+                "bpm": ug_result.get("bpm"),
+                "source": "ultimate-guitar",
+                "versions": versions,
+                "sections": ug_result["sections"],
+            }
 
-    try:
-        return _parse_json(raw)
-    except Exception as e:
-        raise RuntimeError(f"Failed to parse chord sheet: {e}\nRaw: {raw[:300]}")
+    # Step 2: lyrics.ovh + Gemini
+    print("UG failed, trying lyrics.ovh + Gemini...")
+    lyrics = _fetch_lyrics_ovh(artist, title)
+    if lyrics:
+        try:
+            result = _gemini_chords_from_lyrics(title, artist, lyrics)
+            result["source"] = "gemini+lyrics"
+            return result
+        except Exception as e:
+            print(f"Gemini annotation failed: {e}")
+
+    # Step 3: Pure Gemini fallback
+    print("Falling back to pure Gemini...")
+    result = _gemini_fallback(title, artist)
+    result["source"] = "gemini"
+    return result
