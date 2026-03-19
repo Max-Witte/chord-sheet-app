@@ -38,11 +38,8 @@ def root():
 @app.get("/debug")
 def debug():
     import os
-    token = os.getenv("GENIUS_TOKEN", "")
-    return {
-        "token_set": bool(token),
-        "token_preview": token[:6] + "..." if token else "MISSING"
-    }
+    all_vars = {k: v[:4] + "..." for k, v in os.environ.items()}
+    return all_vars
 
 
 @app.post("/from-url")
