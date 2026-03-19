@@ -2,6 +2,7 @@ import os
 import json
 import re
 import requests
+from functools import lru_cache
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
@@ -138,6 +139,7 @@ Rules:
         raise RuntimeError(f"Failed to parse search results: {e}\nRaw: {raw[:300]}")
 
 
+@lru_cache(maxsize=100)
 def get_lyrics_and_chords(title, artist):
     """
     1. Fetch real lyrics from lyrics.ovh
