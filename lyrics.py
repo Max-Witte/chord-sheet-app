@@ -2,7 +2,7 @@ import os
 import re
 import requests
 
-GENIUS_TOKEN = os.getenv("GENIUS_TOKEN", "")
+GENIUS_TOKEN = "t3n7nhT8QdhpDvr2FMqA2O5N4EMu21q5AvdiDXZ4LlSnIjLDWw58MOtAhNsiMWxG"
 
 # Chord-to-lyric alignment helpers
 CHORD_PATTERNS = [
