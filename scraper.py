@@ -137,22 +137,35 @@ def parse_ug_content(content):
     UG uses [ch]X[/ch] for chords, [tab]...[/tab] for tabs,
     and [verse], [chorus] etc. for section headers.
     """
-    # Remove tab blocks
+    # Remove tab blocks (guitar tab notation)
     content = re.sub(r'\[tab\].*?\[/tab\]', '', content, flags=re.DOTALL)
 
     # Convert [ch]X[/ch] to [X]
     content = re.sub(r'\[ch\]([^\[]+?)\[/ch\]', r'[\1]', content)
+
+    # Remove any remaining UG tags like [/verse], [/chorus] etc.
+    content = re.sub(r'\[/?(verse|chorus|bridge|intro|outro|pre.?chorus|interlude|solo|hook)[^\]]*\]', '', content, flags=re.IGNORECASE)
 
     raw_lines = content.split('\n')
     sections = []
     current_label = None
     current_lines = []
     verse_count = 0
+    found_first_section = False
 
     SECTION_RE = re.compile(
         r'^\[(verse|chorus|bridge|intro|outro|pre.?chorus|interlude|solo|hook)'
         r'(?:\s*\d*)?\]$', re.IGNORECASE
     )
+
+    # Patterns to skip — metadata lines and bar lines
+    SKIP_RE = re.compile(
+        r'^(artist|song|album|capo|tuning|key|bpm|provided|transcribed|chords used|note:|this is|difficulty)[\s:]',
+        re.IGNORECASE
+    )
+
+    # Bar lines — lines that are ONLY pipes and spaces (e.g. "| | | |")
+    BARLINE_RE = re.compile(r'^[|/\\ ]+$')
 
     def flush():
         nonlocal current_lines
@@ -166,9 +179,18 @@ def parse_ug_content(content):
         if not line:
             continue
 
+        # Skip metadata lines (only before first real section)
+        if not found_first_section and SKIP_RE.match(line):
+            continue
+
+        # Skip pure bar lines
+        if BARLINE_RE.match(line):
+            continue
+
         m = SECTION_RE.match(line)
         if m:
             flush()
+            found_first_section = True
             tag = m.group(1).lower().replace('-', '').replace(' ', '')
             if tag == 'verse':
                 verse_count += 1
@@ -190,14 +212,19 @@ def parse_ug_content(content):
             continue
 
         if current_label is None:
+            # Skip preamble text until we hit a real section tag
+            # But if no section tags exist at all, capture everything
             current_label = "Intro"
+            found_first_section = True
 
         current_lines.append(line)
 
     flush()
 
     if not sections:
-        all_lines = [l.strip() for l in content.split('\n') if l.strip()]
+        all_lines = [l.strip() for l in content.split('\n') if l.strip()
+                     and not BARLINE_RE.match(l.strip())
+                     and not SKIP_RE.match(l.strip())]
         sections = [{"label": "Verse 1", "lines": all_lines}]
 
     return sections
