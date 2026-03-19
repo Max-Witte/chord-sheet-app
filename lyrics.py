@@ -16,7 +16,7 @@ def _call_gemini(prompt):
         headers={"Content-Type": "application/json"},
         json={
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192}
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 8192}
         }
     )
 
@@ -24,15 +24,15 @@ def _call_gemini(prompt):
         raise RuntimeError(f"Gemini API error {response.status_code}: {response.text}")
 
     data = response.json()
-    print("Gemini raw response:", json.dumps(data)[:500])
+    print("Gemini raw:", json.dumps(data)[:300])
 
     candidates = data.get("candidates", [])
     if not candidates:
-        raise RuntimeError(f"No candidates in Gemini response: {json.dumps(data)}")
+        raise RuntimeError(f"No candidates: {json.dumps(data)}")
 
     parts = candidates[0].get("content", {}).get("parts", [])
     if not parts:
-        raise RuntimeError(f"No parts in Gemini response: {json.dumps(data)}")
+        raise RuntimeError(f"No parts: {json.dumps(data)}")
 
     return parts[0]["text"].strip()
 
@@ -43,49 +43,35 @@ def _parse_json(text):
     return json.loads(text.strip())
 
 
-def search_songs(query):
-    """
-    Returns a list of up to 6 songs matching the query.
-    Handles both song titles and artist names.
-    """
-    prompt = f"""You are a music database. The user searched for: "{query}"
-
-Determine if this is a song title search or an artist search, then return matching songs.
-
-Return ONLY valid JSON, no markdown, no explanation:
-
-{{
-  "type": "song" or "artist",
-  "artist_name": "Artist Name if artist search, else null",
-  "results": [
-    {{"title": "Song Title", "artist": "Artist Name"}},
-    {{"title": "Song Title", "artist": "Artist Name"}}
-  ]
-}}
-
-Rules:
-- Return up to 6 results
-- If it looks like an artist name, return their most popular/well-known songs
-- If it looks like a song title, return the best matching songs (could be covers or songs by different artists)
-- Order by popularity/relevance
-- Only include real, well-known songs you are confident exist
-"""
-    raw = _call_gemini(prompt)
+def _fetch_lyrics(artist, title):
+    """Fetch real lyrics from lyrics.ovh — free, no API key needed."""
     try:
-        return _parse_json(raw)
+        url = f"https://api.lyrics.ovh/v1/{requests.utils.quote(artist)}/{requests.utils.quote(title)}"
+        res = requests.get(url, timeout=8)
+        if res.ok:
+            data = res.json()
+            lyrics = data.get("lyrics", "").strip()
+            if lyrics:
+                print(f"Got lyrics from lyrics.ovh ({len(lyrics)} chars)")
+                return lyrics
     except Exception as e:
-        raise RuntimeError(f"Failed to parse search results: {e}\nRaw: {raw[:300]}")
+        print(f"lyrics.ovh failed: {e}")
+    return None
 
 
-def get_lyrics_and_chords(title, artist):
-    """
-    Returns a full chord sheet for a specific song by a specific artist.
-    """
-    prompt = f"""You are a music expert. Produce a complete chord sheet for:
-Title: {title}
-Artist: {artist}
+def _add_chords_to_lyrics(title, artist, lyrics, key_bpm_hint=""):
+    """Ask Gemini to annotate real lyrics with chords."""
+    prompt = f"""You are a music expert and guitarist/pianist. 
+Your job is to add chord annotations to the lyrics of "{title}" by {artist}.
 
-Use inline chord markers like [C] [Am] [F] [G] placed immediately before the syllable they're played on.
+Here are the REAL lyrics — do NOT change any words, do NOT add or remove lines:
+
+{lyrics}
+
+Add chord markers in [X] format immediately before the word/syllable where the chord changes.
+For example: "[C]Twinkle twinkle [Am]little [F]star"
+
+Also identify the song sections (Verse 1, Chorus, Bridge etc.) and group lines accordingly.
 
 Return ONLY valid JSON, no markdown, no explanation:
 
@@ -98,21 +84,88 @@ Return ONLY valid JSON, no markdown, no explanation:
     {{
       "label": "Verse 1",
       "lines": [
-        "[C]Twinkle twinkle [Am]little [F]star",
-        "[G]How I wonder [C]what you [G]are"
+        "[C]I will leave my [Am]heart at the [F]door",
+        "[G]I won't say a word"
+      ]
+    }},
+    {{
+      "label": "Chorus",
+      "lines": [
+        "[F]All I [C]ask"
       ]
     }}
   ]
 }}
 
 Rules:
-- Place chord markers [X] immediately before the syllable/word they're played on
-- Include ALL sections: intro, all verses, pre-chorus, chorus, bridge, outro
-- Use standard chord notation: C, Dm, Em, F, G, Am, Bm, C#, F#, Bb, Eb etc.
-- BPM approximate is fine
-- Section labels: Intro, Verse 1, Verse 2, Pre-Chorus, Chorus, Bridge, Outro
+- Use the EXACT lyrics provided above — word for word
+- Place [chord] markers where chord changes happen on that syllable
+- Every line must have at least one chord marker
+- Standard chord notation: C, Dm, Em, F, G, Am, Bm, C#, F#, Bb, Eb, G/B, C/E etc.
+- Identify all sections correctly
+"""
+    return _call_gemini(prompt)
+
+
+def search_songs(query):
+    """Return a list of up to 6 songs matching the query."""
+    prompt = f"""You are a music database. The user searched for: "{query}"
+
+Determine if this is a song title or artist name search, then return matching songs.
+
+Return ONLY valid JSON, no markdown:
+
+{{
+  "type": "song",
+  "artist_name": null,
+  "results": [
+    {{"title": "Song Title", "artist": "Artist Name"}},
+    {{"title": "Song Title", "artist": "Artist Name"}}
+  ]
+}}
+
+Rules:
+- Return up to 6 results
+- If artist name: return their most popular songs, set type to "artist" and artist_name to the artist
+- If song title: return best matching songs, type stays "song"
+- Only include real, well-known songs you are confident exist
+- Order by popularity
 """
     raw = _call_gemini(prompt)
+    try:
+        return _parse_json(raw)
+    except Exception as e:
+        raise RuntimeError(f"Failed to parse search results: {e}\nRaw: {raw[:300]}")
+
+
+def get_lyrics_and_chords(title, artist):
+    """
+    1. Fetch real lyrics from lyrics.ovh
+    2. Send to Gemini to annotate with chords
+    """
+    # Step 1: get real lyrics
+    lyrics = _fetch_lyrics(artist, title)
+
+    if not lyrics:
+        print("lyrics.ovh returned nothing, falling back to Gemini-generated lyrics")
+        # Fallback: let Gemini do everything (less accurate but better than nothing)
+        prompt = f"""You are a music expert. Produce a complete chord sheet for "{title}" by {artist}.
+Use inline chord markers [X] before the syllable where the chord is played.
+Return ONLY valid JSON:
+{{
+  "title": "{title}",
+  "artist": "{artist}",
+  "key": "C",
+  "bpm": 120,
+  "sections": [
+    {{"label": "Verse 1", "lines": ["[C]example [Am]line"]}}
+  ]
+}}"""
+        raw = _call_gemini(prompt)
+    else:
+        # Step 2: annotate real lyrics with chords
+        raw = _add_chords_to_lyrics(title, artist, lyrics)
+
     try:
         return _parse_json(raw)
     except Exception as e:
