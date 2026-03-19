@@ -54,24 +54,32 @@ def _search_genius(title: str, artist: str) -> dict | None:
 
 
 def _scrape_lyrics(url: str) -> str:
-    """
-    Scrapes lyrics text from a Genius song page.
-    Uses a simple approach — lyrics are in data-lyrics-container divs.
-    """
     try:
         from bs4 import BeautifulSoup
         resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
         soup = BeautifulSoup(resp.text, "html.parser")
+        
+        # Try the standard container first
         containers = soup.find_all("div", attrs={"data-lyrics-container": "true"})
-        parts = []
-        for container in containers:
-            for br in container.find_all("br"):
-                br.replace_with("\n")
-            parts.append(container.get_text())
-        return "\n".join(parts)
+        if containers:
+            parts = []
+            for container in containers:
+                for br in container.find_all("br"):
+                    br.replace_with("\n")
+                parts.append(container.get_text())
+            return "\n".join(parts)
+        
+        # Fallback: try any div with "lyrics" in the class name
+        for div in soup.find_all("div"):
+            classes = " ".join(div.get("class", []))
+            if "lyrics" in classes.lower():
+                return div.get_text()
+        
+        # Last resort: return page title so we know we reached Genius
+        return f"[SCRAPE_FAILED] Page title: {soup.title.string if soup.title else 'unknown'}"
+    
     except Exception as e:
-        print(f"Scrape error: {e}")
-        return ""
+        return f"[SCRAPE_ERROR] {str(e)}"
 
 
 def _parse_lyrics_to_sections(raw: str) -> list:
