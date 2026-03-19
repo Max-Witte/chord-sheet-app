@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from lyrics import get_lyrics_and_chords, search_songs
+from lyrics import get_lyrics_and_chords, search_songs, get_ug_versions
 
 app = FastAPI()
 
@@ -19,6 +19,7 @@ class SearchRequest(BaseModel):
 class SongRequest(BaseModel):
     title: str
     artist: str
+    ug_url: str = None
 
 @app.get("/")
 def root():
@@ -47,6 +48,14 @@ async def chords(req: SongRequest):
     if not req.title.strip():
         raise HTTPException(status_code=400, detail="Title cannot be empty")
     try:
-        return get_lyrics_and_chords(req.title, req.artist)
+        return get_lyrics_and_chords(req.title, req.artist, req.ug_url)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/versions")
+async def versions(req: SongRequest):
+    """Get all available UG versions for a song."""
+    try:
+        return {"versions": get_ug_versions(req.title, req.artist)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
