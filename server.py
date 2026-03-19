@@ -34,6 +34,15 @@ def root():
     return {"status": "Chord Sheet backend is running!"}
 
 
+@app.get("/debug")
+def debug():
+    import os
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    return {
+        "anthropic_key_set": bool(anthropic_key),
+        "anthropic_preview": anthropic_key[:8] + "..." if anthropic_key else "MISSING"
+    }
+
 @app.post("/from-url")
 async def process_youtube_url(req: YouTubeRequest):
     """
