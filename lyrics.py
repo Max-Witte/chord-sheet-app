@@ -1,135 +1,51 @@
 import os
+import anthropic
+import json
 import re
-import requests
 
-GENIUS_TOKEN = "t3n7nhT8QdhpDvr2FMqA2O5N4EMu21q5AvdiDXZ4LlSnIjLDWw58MOtAhNsiMWxG"
-
-# Chord-to-lyric alignment helpers
-CHORD_PATTERNS = [
-    r'\b([A-G][b#]?(?:maj|min|m|sus|aug|dim|add)?(?:\d+)?(?:\/[A-G][b#]?)?)\b'
-]
-
+ANTHROPIC_API_KEY = "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"
 
 def fetch_lyrics(title: str, artist: str) -> dict:
-    """
-    Fetches lyrics + basic chord info from Genius API.
-    Falls back to a structured placeholder if not found.
-    """
-    if not GENIUS_TOKEN:
-        return _placeholder(title, artist)
-
     try:
-        song = _search_genius(title, artist)
-        if not song:
-            return _placeholder(title, artist)
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        prompt = f"""Return the full lyrics for "{title}" by {artist if artist else "unknown artist"}.
 
-        raw_lyrics = _scrape_lyrics(song["url"])
-        sections = _parse_lyrics_to_sections(raw_lyrics)
+Format your response as a JSON object exactly like this:
+{{
+  "title": "song title",
+  "artist": "artist name",
+  "sections": [
+    {{
+      "label": "Verse 1",
+      "lines": [
+        {{"words": ["word1", "word2", "word3"]}}
+      ]
+    }}
+  ]
+}}
 
-        return {
-            "title": song.get("title", title),
-            "artist": song.get("primary_artist", {}).get("name", artist),
-            "key": "C",  # Genius doesn't provide key — will come from audio analysis
-            "sections": sections,
-        }
+Rules:
+- Split lyrics into sections like Verse 1, Pre-Chorus, Chorus, Bridge etc.
+- Each line of lyrics becomes one entry in "lines"
+- Each word in a line goes into the "words" array
+- Do not include chords, only lyrics
+- Return ONLY the JSON, no other text"""
+
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=4096,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = message.content[0].text.strip()
+        raw = re.sub(r'^```json\s*', '', raw)
+        raw = re.sub(r'^```\s*', '', raw)
+        raw = re.sub(r'\s*```$', '', raw)
+        data = json.loads(raw)
+        for section in data.get("sections", []):
+            for line in section.get("lines", []):
+                if "chords" not in line:
+                    line["chords"] = [""] * len(line.get("words", []))
+        return data
     except Exception as e:
         print(f"Lyrics fetch error: {e}")
-        return _placeholder(title, artist)
-
-
-def _search_genius(title: str, artist: str) -> dict | None:
-    query = f"{title} {artist}".strip()
-    headers = {"Authorization": f"Bearer {GENIUS_TOKEN}"}
-    resp = requests.get(
-        "https://api.genius.com/search",
-        params={"q": query},
-        headers=headers,
-        timeout=10,
-    )
-    resp.raise_for_status()
-    hits = resp.json().get("response", {}).get("hits", [])
-    if not hits:
-        return None
-    return hits[0]["result"]
-
-
-def _scrape_lyrics(url: str) -> str:
-    """
-    Scrapes lyrics text from a Genius song page.
-    Uses a simple approach — lyrics are in data-lyrics-container divs.
-    """
-    try:
-        from bs4 import BeautifulSoup
-        resp = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
-        soup = BeautifulSoup(resp.text, "html.parser")
-        containers = soup.find_all("div", attrs={"data-lyrics-container": "true"})
-        parts = []
-        for container in containers:
-            for br in container.find_all("br"):
-                br.replace_with("\n")
-            parts.append(container.get_text())
-        return "\n".join(parts)
-    except Exception as e:
-        print(f"Scrape error: {e}")
-        return ""
-
-
-def _parse_lyrics_to_sections(raw: str) -> list:
-    """
-    Converts raw lyric text into sections like:
-    [{ label: "Verse 1", lines: [{ chords: [...], words: [...] }] }]
-    
-    Genius marks sections with [Verse 1], [Chorus], etc.
-    Chords will be added later via audio analysis (timeline overlay).
-    For now each line is returned as plain lyric words with empty chords.
-    """
-    sections = []
-    current_label = "Intro"
-    current_lines = []
-
-    for raw_line in raw.split("\n"):
-        line = raw_line.strip()
-        if not line:
-            continue
-
-        # Section header like [Verse 1] or [Chorus]
-        if line.startswith("[") and line.endswith("]"):
-            if current_lines:
-                sections.append({"label": current_label, "lines": current_lines})
-            current_label = line[1:-1]
-            current_lines = []
-            continue
-
-        # Split line into words, each with an empty chord placeholder
-        words = line.split()
-        if words:
-            current_lines.append({
-                "chords": [""] * len(words),
-                "words": words,
-            })
-
-    if current_lines:
-        sections.append({"label": current_label, "lines": current_lines})
-
-    return sections if sections else _placeholder_sections()
-
-
-def _placeholder(title: str, artist: str) -> dict:
-    """Returns a helpful message when lyrics aren't found."""
-    return {
-        "title": title,
-        "artist": artist,
-        "key": "C",
-        "sections": [
-            {
-                "label": "Note",
-                "lines": [
-                    {"chords": [""], "words": ["Lyrics not found — try adding your GENIUS_TOKEN to .env"]}
-                ]
-            }
-        ],
-    }
-
-
-def _placeholder_sections() -> list:
-    return [{"label": "Verse", "lines": [{"chords": [""], "words": ["(Lyrics unavailable)"]}]}]
+        return {"title": title, "artist": artist, "key": "C", "sections": [{"label": "Error", "lines": [{"chords": [""], "words": ["Lyrics not found"]}]}]}
