@@ -34,6 +34,16 @@ def root():
     return {"status": "Chord Sheet backend is running!"}
 
 
+@app.get("/debug")
+def debug():
+    import os
+    token = os.getenv("GENIUS_TOKEN", "")
+    return {
+        "token_set": bool(token),
+        "token_preview": token[:6] + "..." if token else "MISSING"
+    }
+
+
 @app.post("/from-url")
 async def process_youtube_url(req: YouTubeRequest):
     """
