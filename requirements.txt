@@ -1,11 +1,7 @@
 fastapi
 uvicorn[standard]
-yt-dlp
-librosa
-numpy
-requests
-beautifulsoup4
-python-dotenv
-pydantic
-lyricsgenius
 anthropic
+yt-dlp
+pydantic
+python-dotenv
+requests
