@@ -37,7 +37,7 @@ Return ONLY valid JSON, no markdown, no explanation. Format:
 
 Rules:
 - Place chord markers [X] immediately before the syllable/word they're played on
-- Include all verses, chorus, bridge, outro — the full song
+- Include all verses, chorus, bridge, outro -- the full song
 - Use standard chord notation: C, Dm, Em, F, G, Am, Bm, etc. Sharps: C#, F#. Flats: Bb, Eb
 - BPM should be approximate if unknown
 - Section labels: Verse 1, Verse 2, Pre-Chorus, Chorus, Bridge, Outro, Intro
@@ -45,7 +45,7 @@ Rules:
 """
 
 
-def _call_gemini(prompt: str) -> str:
+def _call_gemini(prompt):
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY is not set. Add it in Render environment variables.")
 
@@ -57,18 +57,31 @@ def _call_gemini(prompt: str) -> str:
             "generationConfig": {"temperature": 0.3, "maxOutputTokens": 8192}
         }
     )
-    response.raise_for_status()
+
+    if not response.ok:
+        raise RuntimeError(f"Gemini API error {response.status_code}: {response.text}")
+
     data = response.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    print("Gemini raw response:", json.dumps(data)[:500])
+
+    candidates = data.get("candidates", [])
+    if not candidates:
+        raise RuntimeError(f"No candidates in Gemini response: {json.dumps(data)}")
+
+    parts = candidates[0].get("content", {}).get("parts", [])
+    if not parts:
+        raise RuntimeError(f"No parts in Gemini response: {json.dumps(data)}")
+
+    return parts[0]["text"].strip()
 
 
-def _parse_json(text: str) -> dict:
+def _parse_json(text):
     text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
     text = re.sub(r"\s*```$", "", text, flags=re.MULTILINE)
     return json.loads(text.strip())
 
 
-def _parse_response(raw: str, fallback_title: str) -> dict:
+def _parse_response(raw, fallback_title):
     try:
         return _parse_json(raw)
     except (json.JSONDecodeError, ValueError) as e:
@@ -83,13 +96,13 @@ def _parse_response(raw: str, fallback_title: str) -> dict:
         }
 
 
-def get_lyrics_and_chords_from_search(query: str) -> dict:
+def get_lyrics_and_chords_from_search(query):
     prompt = f"{CHORD_SHEET_PROMPT}\n\nSong: {query}"
     raw = _call_gemini(prompt)
     return _parse_response(raw, query)
 
 
-def get_lyrics_and_chords_from_url(url: str) -> dict:
+def get_lyrics_and_chords_from_url(url):
     prompt = f"""{CHORD_SHEET_PROMPT}
 
 The user provided this YouTube URL: {url}
@@ -110,7 +123,7 @@ If you cannot identify it, return: {{"error": "Could not identify song from URL"
         return _parse_response(raw, url)
 
 
-def _get_youtube_title(url: str) -> str | None:
+def _get_youtube_title(url):
     try:
         import yt_dlp
         with yt_dlp.YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
