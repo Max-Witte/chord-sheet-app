@@ -108,7 +108,7 @@ Rules:
 
 
 def search_songs(query):
-    """Return a list of up to 6 songs matching the query."""
+    """Return all songs Gemini knows for the query."""
     prompt = f"""You are a music database. The user searched for: "{query}"
 
 Determine if this is a song title or artist name search, then return matching songs.
@@ -125,7 +125,7 @@ Return ONLY valid JSON, no markdown:
 }}
 
 Rules:
-- Return up to 6 results
+- Return as many results as you know — no limit
 - If artist name: return their most popular songs, set type to "artist" and artist_name to the artist
 - If song title: return best matching songs, type stays "song"
 - Only include real, well-known songs you are confident exist
