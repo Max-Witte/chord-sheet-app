@@ -282,3 +282,60 @@ def parse_ug_content(content):
         sections = [{"label": "Verse 1", "lines": all_lines}]
 
     return sections
+
+
+# ── Charts & Categories ──────────────────────────────────
+
+GENRES = [
+    "Rock", "Pop", "Metal", "Blues", "Jazz", "Country",
+    "Classical", "Folk", "Punk", "R&B", "Soul", "Reggae",
+    "Alternative", "Indie", "Electronic"
+]
+
+def fetch_top_100():
+    """Fetch UG's top 100 chord sheets."""
+    url = "https://www.ultimate-guitar.com/top?type=Chords"
+    html = _fetch(url)
+    if not html:
+        return []
+    return _parse_explore_results(html)
+
+
+def fetch_by_genre(genre):
+    """Fetch chord sheets filtered by genre."""
+    url = f"https://www.ultimate-guitar.com/explore?genres[]={genre}&type[]=Chords&order=rating_desc"
+    html = _fetch(url)
+    if not html:
+        return []
+    return _parse_explore_results(html)
+
+
+def _parse_explore_results(html):
+    """Parse UG explore/top page results from js-store data."""
+    data = _extract_store_data(html)
+    if not data:
+        print("Charts: could not extract store data")
+        print("HTML snippet:", html[:300])
+        return []
+
+    # Try different data paths UG uses
+    page_data = data.get("store", {}).get("page", {}).get("data", {})
+    results = (page_data.get("results") or
+               page_data.get("tabs") or
+               page_data.get("data", {}).get("tabs") or [])
+
+    songs = []
+    for r in results:
+        if r.get("type") not in ("Chords", "chords"):
+            continue
+        songs.append({
+            "title": r.get("song_name", ""),
+            "artist": r.get("artist_name", ""),
+            "url": r.get("tab_url", ""),
+            "rating": r.get("rating", 0),
+            "votes": r.get("votes", 0),
+            "version": r.get("version", 1),
+        })
+
+    print(f"Charts: found {len(songs)} songs")
+    return songs[:100]
