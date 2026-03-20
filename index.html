@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Chord Sheet</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Chord Sheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#fff;--bg2:#f5f5f3;--bg3:#ebebea;--surface:#fff;--border:#e8e8e6;
+      --text:#111;--text2:#6f6f6d;--text3:#a8a8a5;
+      --accent:#2563eb;--accent-light:#dbeafe;--accent-text:#1d4ed8;
+      --red:#dc2626;--radius:14px;--radius-sm:9px;
+    }
+    @media(prefers-color-scheme:dark){:root{
+      --bg:#0a0a0a;--bg2:#141414;--bg3:#1e1e1e;--surface:#141414;--border:#2a2a2a;
+      --text:#f0f0ee;--text2:#8a8a87;--text3:#555552;
+      --accent:#3b82f6;--accent-light:#1e3a5f;--accent-text:#93c5fd;--red:#ef4444;
+    }}
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;overflow:hidden;background:var(--bg);}
+    body{font-family:'DM Sans',sans-serif;color:var(--text);max-width:480px;margin:0 auto;}
+    .app{position:relative;width:100%;height:100%;overflow:hidden;}
+
+    .page{position:absolute;top:0;left:0;width:100%;height:100%;background:var(--bg);
+      display:flex;flex-direction:column;transition:transform .35s cubic-bezier(.4,0,.2,1);}
+    .page.behind{transform:translateX(-30%);}
+    .page.active{transform:translateX(0);}
+    .page.ahead{transform:translateX(100%);}
+
+    /* Search */
+    .search-header{padding:16px 20px 0;flex-shrink:0;}
+    .top-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+    .wordmark{font-family:'DM Serif Display',serif;font-size:24px;letter-spacing:-.5px;}
+    .wordmark em{font-style:italic;color:var(--accent);}
+    .nav-tabs{display:flex;gap:2px;background:var(--bg2);border-radius:10px;padding:3px;}
+    .nav-tab{padding:5px 11px;border:none;background:transparent;color:var(--text2);
+      font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500;border-radius:7px;cursor:pointer;}
+    .nav-tab.active{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.1);}
+    .search-bar{display:flex;gap:8px;margin-bottom:16px;}
+    .search-input{flex:1;padding:11px 14px;font-size:15px;font-family:'DM Sans',sans-serif;
+      border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg2);color:var(--text);outline:none;}
+    .search-input:focus{border-color:var(--accent);background:var(--surface);}
+    .go-btn{padding:11px 18px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius);
+      font-size:14px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;white-space:nowrap;}
+    .go-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .search-body{flex:1;overflow-y:auto;padding:0 20px 40px;-webkit-overflow-scrolling:touch;}
+
+    /* Cold banner */
+    .cold-banner{display:none;align-items:center;gap:10px;padding:10px 14px;
+      background:color-mix(in srgb,#f59e0b 12%,var(--bg));
+      border:1px solid color-mix(in srgb,#f59e0b 30%,var(--bg));
+      border-radius:var(--radius-sm);margin-bottom:12px;font-size:13px;color:var(--text2);}
+    .cold-banner.show{display:flex;}
+    .cold-spin{width:14px;height:14px;border:2px solid var(--border);border-top-color:#f59e0b;
+      border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+
+    /* Loaders */
+    .loader{display:none;padding:48px 0;text-align:center;}
+    .loader.show{display:block;}
+    .loader-ring{width:30px;height:30px;border:2px solid var(--border);border-top-color:var(--accent);
+      border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 12px;}
+    .loader-text{font-size:13px;color:var(--text2);}
+    @keyframes spin{to{transform:rotate(360deg);}}
+
+    /* Music bars loader */
+    .music-loader{display:none;padding:48px 0;text-align:center;}
+    .music-loader.show{display:flex;flex-direction:column;align-items:center;gap:16px;}
+    .bars{display:flex;align-items:flex-end;gap:5px;height:36px;}
+    .bar{width:5px;border-radius:3px;background:var(--accent);animation:bounce 1s ease-in-out infinite;}
+    .bar:nth-child(1){height:14px;animation-delay:0s;}
+    .bar:nth-child(2){height:24px;animation-delay:.15s;}
+    .bar:nth-child(3){height:34px;animation-delay:.3s;}
+    .bar:nth-child(4){height:24px;animation-delay:.15s;}
+    .bar:nth-child(5){height:14px;animation-delay:0s;}
+    @keyframes bounce{0%,100%{transform:scaleY(.4);opacity:.5;}50%{transform:scaleY(1);opacity:1;}}
+    .loader-label{font-size:13px;color:var(--text2);font-weight:500;}
+
+    /* Error */
+    .error-box{display:none;margin:12px 0;padding:12px 14px;
+      background:color-mix(in srgb,var(--red) 10%,var(--bg));
+      border:1px solid color-mix(in srgb,var(--red) 25%,var(--bg));
+      border-radius:var(--radius-sm);font-size:13px;color:var(--red);line-height:1.5;}
+    .error-box.show{display:block;}
+    .error-tip{font-size:12px;color:var(--text2);margin-top:5px;line-height:1.5;}
+
+    /* Recent */
+    .recent-section{margin-bottom:16px;}
+    .section-heading{display:flex;justify-content:space-between;align-items:center;
+      font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--text3);margin-bottom:8px;}
+    .clear-btn{font-size:11px;color:var(--accent);cursor:pointer;text-transform:none;letter-spacing:0;font-weight:500;}
+    .pill-row{display:flex;flex-wrap:wrap;gap:6px;}
+    .pill{padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);
+      font-size:13px;color:var(--text2);cursor:pointer;background:var(--bg2);
+      font-family:'DM Sans',sans-serif;}
+    .pill:active{background:var(--bg3);}
+
+    /* Results */
+    .results-heading{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--text3);margin-bottom:10px;}
+    .card{display:flex;align-items:center;gap:12px;padding:13px 14px;
+      background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+      margin-bottom:8px;cursor:pointer;user-select:none;}
+    .card:active{background:var(--bg2);border-color:var(--accent);}
+    .card-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;
+      justify-content:center;font-size:17px;flex-shrink:0;}
+    .icon-song{background:var(--accent-light);}
+    .icon-artist{background:color-mix(in srgb,#f59e0b 15%,var(--bg));}
+    .icon-num{font-family:'DM Mono',monospace;font-size:13px;color:var(--text3);min-width:28px;text-align:center;flex-shrink:0;}
+    .card-info{flex:1;min-width:0;}
+    .card-title{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .card-sub{font-size:13px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .card-chev{color:var(--text3);font-size:18px;flex-shrink:0;}
+    .artist-songs{display:none;margin-left:18px;margin-bottom:8px;
+      border-left:2px solid var(--border);padding-left:12px;}
+    .artist-songs.open{display:block;}
+    .sub-item{display:flex;align-items:center;padding:10px 12px;
+      background:var(--bg2);border-radius:var(--radius-sm);margin-bottom:5px;cursor:pointer;gap:8px;}
+    .sub-item:active{background:var(--bg3);}
+    .sub-title{flex:1;font-size:14px;font-weight:500;}
+
+    /* No results */
+    .no-results{padding:28px 0;text-align:center;}
+    .no-results-icon{font-size:36px;margin-bottom:10px;opacity:.5;}
+    .no-results-title{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:8px;}
+    .no-results-tips{font-size:13px;color:var(--text3);line-height:1.8;text-align:left;
+      background:var(--bg2);border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;}
+
+    /* Empty state */
+    .empty{padding:56px 0;text-align:center;}
+    .empty-icon{font-size:48px;margin-bottom:12px;opacity:.6;}
+    .empty-title{font-family:'DM Serif Display',serif;font-size:20px;color:var(--text2);margin-bottom:6px;}
+    .empty-sub{font-size:13px;color:var(--text3);line-height:1.6;}
+
+    /* Genre pills */
+    .genre-scroll{display:flex;gap:7px;overflow-x:auto;padding-bottom:12px;margin-bottom:8px;
+      scrollbar-width:none;}
+    .genre-scroll::-webkit-scrollbar{display:none;}
+    .genre-pill{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);
+      background:var(--bg2);font-size:13px;font-weight:500;color:var(--text2);
+      cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif;flex-shrink:0;}
+    .genre-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+    /* Fav tabs */
+    .fav-tab-row{display:flex;gap:8px;margin-bottom:14px;}
+    .fav-tab{padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);
+      background:var(--bg2);font-size:13px;font-weight:500;color:var(--text2);
+      cursor:pointer;font-family:'DM Sans',sans-serif;}
+    .fav-tab.active{background:var(--text);color:var(--bg);border-color:var(--text);}
+
+    /* Versions page */
+    .page-header{flex-shrink:0;border-bottom:1px solid var(--border);}
+    .page-nav{display:flex;align-items:center;padding:13px 20px 10px;}
+    .back-btn{display:flex;align-items:center;gap:4px;font-size:15px;font-weight:500;flex-shrink:0;max-width:60%;overflow:hidden;
+      color:var(--accent);cursor:pointer;background:none;border:none;font-family:inherit;padding:4px 0;}
+    .page-title{font-family:'DM Serif Display',serif;font-size:21px;padding:0 20px 4px;}
+    .page-sub{font-size:13px;color:var(--text2);padding:0 20px 12px;}
+    .page-body{flex:1;overflow-y:auto;padding:14px 20px 40px;}
+    .version-card{display:flex;align-items:center;padding:13px 14px;
+      background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);
+      margin-bottom:8px;cursor:pointer;gap:10px;}
+    .version-card:active{background:var(--bg2);}
+    .version-card.best{border-color:var(--accent);background:var(--accent-light);}
+    .ver-num{font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);min-width:38px;}
+    .ver-info{flex:1;}
+    .ver-stars{font-size:13px;font-weight:600;}
+    .ver-votes{font-size:12px;color:var(--text3);margin-top:1px;}
+    .ver-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;background:var(--accent);color:#fff;}
+
+    /* Chord page */
+    .chord-nav{display:flex;align-items:center;padding:13px 16px 10px;border-bottom:1px solid var(--border);gap:8px;min-height:52px;}
+    .chord-actions{display:flex;gap:6px;margin-left:auto;flex-shrink:0;}
+    .icon-action{background:none;border:none;font-size:22px;cursor:pointer;padding:6px 8px;
+      border-radius:7px;line-height:1;min-width:38px;min-height:38px;display:flex;align-items:center;justify-content:center;}
+    .icon-action:active{background:var(--bg2);}
+    .icon-action.saved{color:var(--red);}
+    .chord-meta{padding:12px 20px;}
+    .chord-title{font-family:'DM Serif Display',serif;font-size:23px;letter-spacing:-.3px;line-height:1.2;}
+    .chord-artist{font-size:13px;color:var(--text2);margin-top:2px;}
+    .badge-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center;}
+    .badge{font-size:12px;font-weight:500;padding:3px 10px;border-radius:20px;
+      border:1px solid var(--border);color:var(--text2);background:var(--bg2);}
+    .badge.key{background:var(--accent-light);color:var(--accent-text);border-color:transparent;}
+    .ver-switch{font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;
+      border:1px solid var(--border);color:var(--accent);background:var(--bg2);cursor:pointer;font-family:inherit;}
+    .capo-row{display:flex;align-items:center;gap:8px;padding:7px 20px;
+      border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg2);}
+    .capo-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);}
+    .small-btn{padding:3px 10px;border-radius:20px;border:1.5px solid var(--border);
+      background:var(--surface);font-size:12px;font-weight:600;font-family:'DM Mono',monospace;color:var(--text);cursor:pointer;}
+    .small-btn:active{background:var(--bg3);}
+    .ctrl-bar{display:flex;align-items:center;gap:8px;padding:8px 20px;
+      background:var(--bg2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;flex-wrap:wrap;}
+    .ctrl-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3);}
+    .round-btn{width:27px;height:27px;border-radius:50%;border:1.5px solid var(--border);
+      background:var(--surface);color:var(--text);font-size:15px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;}
+    .round-btn:active{background:var(--bg3);}
+    .ctrl-val{font-size:13px;font-weight:600;font-family:'DM Mono',monospace;min-width:24px;text-align:center;}
+    .size-btn{padding:4px 9px;border:1.5px solid var(--border);border-radius:7px;
+      background:var(--surface);font-size:12px;font-weight:500;font-family:'DM Sans',sans-serif;color:var(--text);cursor:pointer;}
+    .divider{width:1px;height:18px;background:var(--border);}
+    .instrument-sel{padding:4px 8px;border:1.5px solid var(--border);border-radius:7px;
+      background:var(--surface);font-size:12px;font-family:'DM Sans',sans-serif;color:var(--text);cursor:pointer;outline:none;}
+    .lyrics-area{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:20px 20px 100px;}
+    .sec-label{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+      color:var(--text3);margin:24px 0 10px;font-family:'DM Mono',monospace;
+      cursor:pointer;display:inline-block;padding:3px 6px;border-radius:4px;}
+    .sec-label:first-child{margin-top:0;}
+    .sec-label:hover{background:var(--bg2);}
+    .sec-label.looping{background:color-mix(in srgb,var(--accent) 15%,var(--bg));color:var(--accent);}
+    .lyric-line{margin-bottom:18px;padding:2px 4px;border-radius:5px;transition:background .15s;}
+
+    .cw-row{display:flex;flex-wrap:wrap;align-items:flex-end;}
+    .cw{display:inline-flex;flex-direction:column;margin-right:2px;}
+    .chord{font-family:'DM Mono',monospace;font-weight:500;color:var(--accent);
+      white-space:pre;min-height:16px;line-height:1.4;cursor:pointer;
+      padding:0 1px;border-radius:3px;transition:background .1s;}
+    .chord:hover{background:var(--accent-light);}
+    .word{white-space:pre;line-height:1.6;font-weight:400;}
+    .scroll-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+      width:100%;max-width:480px;display:none;align-items:center;gap:10px;
+      padding:10px 20px 28px;background:var(--surface);border-top:1px solid var(--border);z-index:20;}
+    .scroll-bar.show{display:flex;}
+    .scroll-btn{padding:6px 14px;border-radius:8px;border:1.5px solid var(--border);
+      background:var(--bg2);font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;color:var(--text2);cursor:pointer;white-space:nowrap;}
+    .scroll-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .scroll-slider{-webkit-appearance:none;appearance:none;height:3px;border-radius:2px;
+      background:var(--border);outline:none;flex:1;cursor:pointer;accent-color:var(--accent);}
+    .speed-label{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);min-width:14px;}
+
+    /* Piano/Guitar modal */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;
+      opacity:0;pointer-events:none;transition:opacity .25s;
+      display:flex;align-items:flex-end;justify-content:center;}
+    .overlay.open{opacity:1;pointer-events:all;}
+    .modal{background:var(--surface);border-radius:22px 22px 0 0;width:100%;max-width:480px;
+      padding:0 0 36px;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+    .overlay.open .modal{transform:translateY(0);}
+    .modal-handle{width:34px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 0;}
+    .modal-title{font-family:'DM Serif Display',serif;font-size:26px;text-align:center;padding:14px 20px 4px;}
+    .modal-notes{font-size:12px;color:var(--text2);text-align:center;margin-bottom:16px;font-family:'DM Mono',monospace;}
+    .piano-wrap{padding:0 20px;overflow-x:auto;}
+    .piano{position:relative;height:130px;margin:0 auto;}
+    .wk{position:absolute;top:0;width:38px;height:120px;background:#fff;
+      border:1.5px solid #ccc;border-radius:0 0 5px 5px;}
+    .wk.on{background:#93c5fd;border-color:var(--accent);}
+    .bk{position:absolute;top:0;width:24px;height:76px;background:#1a1a1a;
+      border-radius:0 0 4px 4px;z-index:2;}
+    .bk.on{background:var(--accent);}
+    .fret-wrap{padding:0 20px;overflow-x:auto;}
+    .var-section{padding:14px 20px 0;}
+    .var-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:8px;}
+    .var-pills{display:flex;gap:7px;flex-wrap:wrap;}
+    .var-pill{padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);
+      font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;background:var(--bg2);font-family:'DM Sans',sans-serif;}
+    .var-pill.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+    /* Share modal */
+    .share-title{font-family:'DM Serif Display',serif;font-size:22px;padding:16px 22px 4px;}
+    .share-sub{font-size:13px;color:var(--text2);padding:0 22px 18px;line-height:1.5;}
+    .share-body{padding:0 22px;}
+    .room-code{font-family:'DM Mono',monospace;font-size:46px;font-weight:700;
+      letter-spacing:.15em;color:var(--accent);text-align:center;margin:12px 0;}
+    .room-status{display:flex;align-items:center;gap:8px;padding:10px 12px;
+      background:var(--bg2);border-radius:var(--radius-sm);font-size:13px;color:var(--text2);}
+
+    @media(orientation:landscape) and (max-height:500px){
+      .chord-title{font-size:18px;} .lyrics-area{padding:12px 20px 80px;}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+<!-- SEARCH PAGE -->
+<div class="page active" id="pgSearch">
+  <div class="search-header">
+    <div class="top-row">
+      <div class="wordmark">Chord<em>Sheet</em></div>
+      <div class="nav-tabs">
+        <button class="nav-tab active" id="tabSearch" onclick="switchTab('search')">Search</button>
+        <button class="nav-tab" id="tabDiscover" onclick="switchTab('discover')">Discover</button>
+        <button class="nav-tab" id="tabSaved" onclick="switchTab('saved')">Saved</button>
+      </div>
+    </div>
+    <div class="search-bar" id="searchBar">
+      <input class="search-input" id="searchInput" type="text" placeholder="Song or artist name..." autocomplete="off" />
+      <button class="go-btn" id="goBtn" onclick="doSearch()">Search</button>
+    </div>
+  </div>
+  <div class="search-body">
+    <div class="cold-banner" id="coldBanner">
+      <div class="cold-spin"></div>
+      <span>Server waking up, first search may take ~30s...</span>
+    </div>
+    <!-- Search panel -->
+    <div id="panelSearch">
+      <div class="music-loader" id="searchLoader">
+        <div class="bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <div class="loader-label">Searching...</div>
+      </div>
+      <div class="error-box" id="searchError"></div>
+      <div id="recentSection"></div>
+      <div id="resultsSection"></div>
+      <div class="empty" id="emptyState">
+        <div class="empty-icon">&#127925;</div>
+        <div class="empty-title">Find any song</div>
+        <div class="empty-sub">Search by song title or artist.<br>Tap a result to see chord versions.</div>
+      </div>
+    </div>
+    <!-- Discover panel -->
+    <div id="panelDiscover" style="display:none">
+      <div class="genre-scroll" id="genreRow"></div>
+      <div class="music-loader" id="chartLoader">
+        <div class="bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <div class="loader-label">Loading chart...</div>
+      </div>
+      <div id="chartResults"></div>
+    </div>
+    <!-- Saved panel -->
+    <div id="panelSaved" style="display:none">
+      <div class="fav-tab-row">
+        <button class="fav-tab active" id="ftSaved" onclick="switchFavTab('saved')">Saved</button>
+        <button class="fav-tab" id="ftHistory" onclick="switchFavTab('history')">History</button>
+      </div>
+      <div id="savedList"></div>
+      <div id="historyList" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VERSIONS PAGE -->
+<div class="page ahead" id="pgVersions">
+  <div class="page-header">
+    <div class="page-nav">
+      <button class="back-btn" onclick="goTo('search','versions')">&#8249; Back</button>
+    </div>
+    <div class="page-title" id="versionsTitle"></div>
+    <div class="page-sub" id="versionsSub"></div>
+  </div>
+  <div class="page-body">
+    <div class="music-loader" id="versionsLoader">
+      <div class="bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+      <div class="loader-label">Loading versions...</div>
+    </div>
+    <div class="error-box" id="versionsError"></div>
+    <div id="versionsList"></div>
+  </div>
+</div>
+
+<!-- CHORD PAGE -->
+<div class="page ahead" id="pgChord">
+  <div class="chord-nav">
+    <button class="back-btn" onclick="goTo('versions','chord')">&#8249; Back</button>
+    <div class="chord-actions">
+      <button class="icon-action" id="favBtn" onclick="toggleFav()" title="Save" style="font-size:26px;min-width:44px;min-height:44px;color:var(--text2);">&#9825;</button>
+      
+    </div>
+  </div>
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;" id="chordScroll">
+    <div class="chord-meta">
+      <div class="chord-title" id="chordTitle"></div>
+      <div class="chord-artist" id="chordArtist"></div>
+      <div class="badge-row" id="badgeRow"></div>
+    </div>
+    <div class="capo-row">
+      <span class="capo-label">Capo</span>
+      <button class="small-btn" onclick="adjCapo(-1)">-</button>
+      <span class="ctrl-val" id="capoVal">0</span>
+      <button class="small-btn" onclick="adjCapo(1)">+</button>
+      <span style="font-size:11px;color:var(--text3);margin-left:4px;" id="capoHint"></span>
+    </div>
+    <div class="ctrl-bar">
+      <span class="ctrl-label">Key</span>
+      <button class="round-btn" onclick="transpose(-1)">-</button>
+      <span class="ctrl-val" id="transposeVal">0</span>
+      <button class="round-btn" onclick="transpose(1)">+</button>
+      <div class="divider"></div>
+      <button class="size-btn" onclick="adjSize(-1)">A-</button>
+      <button class="size-btn" onclick="adjSize(1)">A+</button>
+      <div class="divider"></div>
+      <select class="instrument-sel" id="instrSel" onchange="setInstrument(this.value)">
+        <option value="piano">Piano</option>
+        <option value="guitar">Guitar</option>
+      </select>
+    </div>
+    <div class="lyrics-area" id="lyricsArea">
+      <div class="music-loader" id="chordLoader">
+        <div class="bars"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
+        <div class="loader-label">Fetching chords...</div>
+      </div>
+      <div class="error-box" id="chordError"></div>
+      <div id="lyricsContent"></div>
+    </div>
+  </div>
+  <div class="scroll-bar" id="scrollBar">
+    <button class="scroll-btn" id="scrollBtn" onclick="toggleScroll()">&#9654; Scroll</button>
+    <button class="small-btn" onclick="adjBpm(-5)">-</button>
+    <input id="bpmDisplay" type="number" min="20" max="300"
+      style="font-size:13px;font-family:'DM Mono',monospace;color:var(--text2);
+      width:64px;text-align:center;border:1.5px solid var(--border);border-radius:8px;
+      background:var(--bg2);padding:4px 6px;outline:none;"
+      placeholder="BPM" oninput="onBpmInput(this.value)" />
+    <button class="small-btn" onclick="adjBpm(5)">+</button>
+  </div>
+</div>
+
+</div><!-- .app -->
+
+<!-- CHORD MODAL -->
+<div class="overlay" id="chordOverlay" onclick="closeChordModal(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-notes" id="modalNotes"></div>
+    <div class="piano-wrap" id="pianoWrap"></div>
+    <div id="fretWrap"></div>
+    <div class="var-section">
+      <div class="var-title">Variations</div>
+      <div class="var-pills" id="varPills"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+var BACKEND = "https://chord-sheet-app.onrender.com";
+var NOTES = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+var transposeOffset = 0;
+var capoOffset = 0;
+var fontSize = 16;
+var instrument = "piano";
+var currentSong = null;
+var currentVersions = [];
+var scrolling = false;
+var scrollRaf = null;
+var currentBpm = 0;
+var loopSection = null;
+var allLines = [];
+var currentLineIdx = 0;
+
+// ---- Cold start detection ----
+// Ping on load. If response < 2s = warm. If slow/fail = cold.
+var serverWarm = false;
+function showCold() { document.getElementById("coldBanner").classList.add("show"); }
+function hideCold() { document.getElementById("coldBanner").classList.remove("show"); }
+(function pingServer() {
+  var t = Date.now();
+  fetch(BACKEND + "/", {method:"GET"}).then(function() {
+    serverWarm = Date.now() - t < 2000;
+  }).catch(function() {
+    serverWarm = false;
+  });
+})();
+
+// ---- Tabs ----
+var activeTab = "search";
+function switchTab(tab) {
+  activeTab = tab;
+  ["search","discover","saved"].forEach(function(t) {
+    document.getElementById("tab" + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle("active", t === tab);
+    var p = document.getElementById("panel" + t.charAt(0).toUpperCase() + t.slice(1));
+    if (p) p.style.display = t === tab ? "block" : "none";
+  });
+  document.getElementById("searchBar").style.display = tab === "search" ? "flex" : "none";
+  document.getElementById("emptyState").style.display = tab === "search" ? "" : "none";
+  if (tab === "discover" && !document.getElementById("chartResults").innerHTML) {
+    setupGenres();
+    loadChart("top100");
+  }
+  if (tab === "saved") renderSavedPanel();
+}
+
+// ---- Navigation ----
+var PAGE_ORDER = ["search","versions","chord"];
+function goTo(target, from) {
+  var ids = {search:"pgSearch", versions:"pgVersions", chord:"pgChord"};
+  var fi = PAGE_ORDER.indexOf(from), ti = PAGE_ORDER.indexOf(target);
+  if (ti < fi) {
+    document.getElementById(ids[from]).classList.replace("active","ahead");
+    document.getElementById(ids[target]).classList.replace("behind","active");
+  } else {
+    document.getElementById(ids[from]).classList.replace("active","behind");
+    document.getElementById(ids[target]).classList.replace("ahead","active");
+  }
+  if (target !== "chord") { stopScroll(); document.getElementById("scrollBar").classList.remove("show"); }
+  else { document.getElementById("scrollBar").classList.add("show"); }
+  history.pushState({page: target}, "", "");
+}
+window.addEventListener("popstate", function() {
+  var active = document.querySelector(".page.active");
+  if (!active) return;
+  if (active.id === "pgChord") goTo("versions","chord");
+  else if (active.id === "pgVersions") goTo("search","versions");
+  else history.pushState({page:"search"}, "", "");
+});
+
+// ---- Recent ----
+function getRecent() { try { return JSON.parse(safeGet("recent") || "[]"); } catch(e) { return []; } }
+function addRecent(q) {
+  var r = getRecent().filter(function(x) { return x.toLowerCase() !== q.toLowerCase(); });
+  r.unshift(q); r = r.slice(0,10);
+  safeSet("recent", JSON.stringify(r));
+  renderRecent();
+}
+function clearRecent() { safeRemove("recent"); renderRecent(); }
+function renderRecent() {
+  var wrap = document.getElementById("recentSection");
+  var items = getRecent();
+  if (!items.length) { wrap.innerHTML = ""; return; }
+  wrap.innerHTML = "";
+  var sec = document.createElement("div");
+  sec.className = "recent-section";
+  var heading = document.createElement("div");
+  heading.className = "section-heading";
+  heading.innerHTML = "Recent";
+  var clr = document.createElement("span");
+  clr.className = "clear-btn";
+  clr.textContent = "Clear";
+  clr.onclick = clearRecent;
+  heading.appendChild(clr);
+  sec.appendChild(heading);
+  var row = document.createElement("div");
+  row.className = "pill-row";
+  items.forEach(function(q) {
+    var btn = document.createElement("button");
+    btn.className = "pill";
+    btn.textContent = q;
+    btn.onclick = function() { searchQuery(q); };
+    row.appendChild(btn);
+  });
+  sec.appendChild(row);
+  wrap.appendChild(sec);
+}
+
+// ---- Search ----
+function searchQuery(q) {
+  document.getElementById("searchInput").value = q;
+  doSearch();
+}
+function doSearch() {
+  var q = document.getElementById("searchInput").value.trim();
+  if (!q) return;
+  addRecent(q);
+  document.getElementById("goBtn").disabled = true;
+  document.getElementById("searchLoader").classList.add("show");
+  document.getElementById("searchError").classList.remove("show");
+  document.getElementById("resultsSection").innerHTML = "";
+  document.getElementById("emptyState").style.display = "none";
+  hideCold();
+  // Only show cold banner if server was not warm on page load
+  var coldTimer = serverWarm ? null : setTimeout(showCold, 4000);
+  fetch(BACKEND + "/search", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({query: q})
+  }).then(function(res) {
+    if (coldTimer) clearTimeout(coldTimer); hideCold(); serverWarm = true;
+    if (!res.ok) return res.json().then(function(e) { throw new Error(e.detail || "Search failed"); });
+    return res.json();
+  }).then(function(data) {
+    renderResults(data.results || [], q);
+  }).catch(function(e) {
+    if (coldTimer) clearTimeout(coldTimer); hideCold();
+    var el = document.getElementById("searchError");
+    el.innerHTML = "<strong>Search failed:</strong> " + e.message + '<div class="error-tip">Wait ~30s if server just started, then try again.</div>';
+    el.classList.add("show");
+    document.getElementById("emptyState").style.display = "";
+  }).finally(function() {
+    document.getElementById("searchLoader").classList.remove("show");
+    document.getElementById("goBtn").disabled = false;
+  });
+}
+
+function renderResults(results, query) {
+  var wrap = document.getElementById("resultsSection");
+  wrap.innerHTML = "";
+  if (!results.length) {
+    var d = document.createElement("div");
+    d.className = "no-results";
+    d.innerHTML = '<div class="no-results-icon">&#128269;</div><div class="no-results-title">No results for "' + query + '"</div><ul class="no-results-tips"><li>Check the spelling</li><li>Try just the artist name</li><li>Try a shorter title</li></ul>';
+    wrap.appendChild(d);
+    return;
+  }
+  var lbl = document.createElement("div");
+  lbl.className = "results-heading";
+  lbl.textContent = results.length + " result" + (results.length !== 1 ? "s" : "");
+  wrap.appendChild(lbl);
+  var byArtist = {};
+  results.forEach(function(s) {
+    if (!byArtist[s.artist]) byArtist[s.artist] = [];
+    byArtist[s.artist].push(s);
+  });
+  Object.keys(byArtist).forEach(function(artist) {
+    var songs = byArtist[artist];
+    if (songs.length === 1) { appendSongCard(wrap, songs[0]); return; }
+    var fid = "f_" + artist.replace(/\W/g,"_");
+    var card = document.createElement("div");
+    card.className = "card";
+    var icon = document.createElement("div"); icon.className = "card-icon icon-artist"; icon.textContent = "🎤";
+    var info = document.createElement("div"); info.className = "card-info";
+    var t = document.createElement("div"); t.className = "card-title"; t.textContent = artist;
+    var s = document.createElement("div"); s.className = "card-sub"; s.textContent = songs.length + " songs";
+    var chev = document.createElement("div"); chev.className = "card-chev"; chev.id = "chev_" + fid; chev.textContent = "›";
+    info.appendChild(t); info.appendChild(s);
+    card.appendChild(icon); card.appendChild(info); card.appendChild(chev);
+    card.onclick = function() {
+      var f = document.getElementById(fid);
+      var c = document.getElementById("chev_" + fid);
+      var open = f.classList.toggle("open");
+      c.style.transform = open ? "rotate(90deg)" : "";
+      c.style.transition = "transform .2s";
+    };
+    wrap.appendChild(card);
+    var folder = document.createElement("div"); folder.className = "artist-songs"; folder.id = fid;
+    songs.forEach(function(song) {
+      var item = document.createElement("div"); item.className = "sub-item";
+      var title = document.createElement("div"); title.className = "sub-title"; title.textContent = song.title;
+      var ch = document.createElement("div"); ch.style.color = "var(--text3)"; ch.textContent = "›";
+      item.appendChild(title); item.appendChild(ch);
+      item.onclick = function() { loadVersions(song.title, song.artist); };
+      folder.appendChild(item);
+    });
+    wrap.appendChild(folder);
+  });
+}
+
+function appendSongCard(wrap, song) {
+  var card = document.createElement("div"); card.className = "card";
+  var icon = document.createElement("div"); icon.className = "card-icon icon-song"; icon.innerHTML = "&#127925;";
+  var info = document.createElement("div"); info.className = "card-info";
+  var t = document.createElement("div"); t.className = "card-title"; t.textContent = song.title;
+  var s = document.createElement("div"); s.className = "card-sub"; s.textContent = song.artist;
+  var chev = document.createElement("div"); chev.className = "card-chev"; chev.textContent = "›";
+  info.appendChild(t); info.appendChild(s);
+  card.appendChild(icon); card.appendChild(info); card.appendChild(chev);
+  card.onclick = function() { loadVersions(song.title, song.artist); };
+  wrap.appendChild(card);
+}
+
+// ---- Discover ----
+var GENRES = ["top100","Rock","Pop","Metal","Blues","Jazz","Country","Folk","Punk","Indie"];
+var GENRE_LABELS = {top100:"Top 100",Rock:"Rock",Pop:"Pop",Metal:"Metal",Blues:"Blues",Jazz:"Jazz",Country:"Country",Folk:"Folk",Punk:"Punk",Indie:"Indie"};
+var activeGenre = "top100";
+function setupGenres() {
+  var row = document.getElementById("genreRow");
+  if (row.children.length) return;
+  GENRES.forEach(function(g) {
+    var btn = document.createElement("button");
+    btn.className = "genre-pill" + (g === "top100" ? " active" : "");
+    btn.textContent = GENRE_LABELS[g];
+    btn.onclick = function() { loadChart(g); };
+    btn.id = "gp_" + g;
+    row.appendChild(btn);
+  });
+}
+function loadChart(genre) {
+  activeGenre = genre;
+  GENRES.forEach(function(g) {
+    var el = document.getElementById("gp_" + g);
+    if (el) el.classList.toggle("active", g === genre);
+  });
+  document.getElementById("chartResults").innerHTML = "";
+  document.getElementById("chartLoader").classList.add("show");
+  var url = genre === "top100" ? BACKEND + "/charts/top100" : BACKEND + "/charts/genre";
+  var opts = genre === "top100"
+    ? {method:"GET"}
+    : {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({genre: genre})};
+  fetch(url, opts).then(function(r) { return r.json(); }).then(function(data) {
+    renderChart(data.songs || []);
+  }).catch(function() {
+    document.getElementById("chartResults").innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center">Could not load chart.</div>';
+  }).finally(function() {
+    document.getElementById("chartLoader").classList.remove("show");
+  });
+}
+function renderChart(songs) {
+  var wrap = document.getElementById("chartResults");
+  wrap.innerHTML = "";
+  songs.forEach(function(song, i) {
+    var card = document.createElement("div"); card.className = "card";
+    var num = document.createElement("div"); num.className = "icon-num"; num.textContent = i + 1;
+    var info = document.createElement("div"); info.className = "card-info";
+    var t = document.createElement("div"); t.className = "card-title"; t.textContent = song.title;
+    var s = document.createElement("div"); s.className = "card-sub"; s.textContent = song.artist;
+    var chev = document.createElement("div"); chev.className = "card-chev"; chev.textContent = "›";
+    info.appendChild(t); info.appendChild(s);
+    card.appendChild(num); card.appendChild(info); card.appendChild(chev);
+    card.onclick = function() { loadVersions(song.title, song.artist); };
+    wrap.appendChild(card);
+  });
+}
+
+// ---- Favorites / History ----
+var _memStore = {};
+function safeGet(key) {
+  try { var v = localStorage.getItem(key); return v || null; } catch(e) { return _memStore[key] || null; }
+}
+function safeSet(key, val) {
+  try { localStorage.setItem(key, val); } catch(e) { _memStore[key] = val; }
+}
+function safeRemove(key) {
+  try { localStorage.removeItem(key); } catch(e) { delete _memStore[key]; }
+}
+function getFavs() { try { return JSON.parse(safeGet("favs") || "[]"); } catch(e) { return []; } }
+function getHistory() { try { return JSON.parse(safeGet("history") || "[]"); } catch(e) { return []; } }
+function isFav(title, artist) {
+  return getFavs().some(function(s) { return s.title === title && s.artist === artist; });
+}
+function toggleFav() {
+  if (!currentSong) return;
+  var title = currentSong.title, artist = currentSong.artist;
+  var favs = getFavs();
+  if (isFav(title, artist)) {
+    favs = favs.filter(function(s) { return !(s.title === title && s.artist === artist); });
+  } else {
+    favs.unshift({title: title, artist: artist});
+  }
+  safeSet("favs", JSON.stringify(favs));
+  updateFavBtn();
+}
+function updateFavBtn() {
+  var btn = document.getElementById("favBtn");
+  if (!btn || !currentSong) return;
+  var saved = isFav(currentSong.title, currentSong.artist);
+  btn.textContent = saved ? "♥" : "♡";
+  btn.classList.toggle("saved", saved);
+}
+function addHistory(title, artist) {
+  var h = getHistory().filter(function(s) { return !(s.title === title && s.artist === artist); });
+  h.unshift({title: title, artist: artist});
+  h = h.slice(0, 30);
+  safeSet("history", JSON.stringify(h));
+}
+var activeFavTab = "saved";
+function switchFavTab(tab) {
+  activeFavTab = tab;
+  document.getElementById("ftSaved").classList.toggle("active", tab === "saved");
+  document.getElementById("ftHistory").classList.toggle("active", tab === "history");
+  document.getElementById("savedList").style.display = tab === "saved" ? "" : "none";
+  document.getElementById("historyList").style.display = tab === "history" ? "" : "none";
+}
+function renderSavedPanel() {
+  renderSongList("savedList", getFavs(), "No saved songs yet.\nTap the heart icon on any chord sheet.");
+  renderSongList("historyList", getHistory(), "No songs viewed yet.");
+}
+function renderSongList(id, songs, emptyMsg) {
+  var wrap = document.getElementById(id);
+  wrap.innerHTML = "";
+  if (!songs.length) {
+    var p = document.createElement("div");
+    p.style = "color:var(--text3);font-size:13px;padding:32px 0;text-align:center;white-space:pre-line;";
+    p.textContent = emptyMsg;
+    wrap.appendChild(p);
+    return;
+  }
+  songs.forEach(function(song) {
+    var card = document.createElement("div"); card.className = "card";
+    var icon = document.createElement("div"); icon.className = "card-icon icon-song"; icon.innerHTML = "&#9836;";
+    var info = document.createElement("div"); info.className = "card-info";
+    var t = document.createElement("div"); t.className = "card-title"; t.textContent = song.title;
+    var s = document.createElement("div"); s.className = "card-sub"; s.textContent = song.artist;
+    var chev = document.createElement("div"); chev.className = "card-chev"; chev.textContent = "›";
+    info.appendChild(t); info.appendChild(s);
+    card.appendChild(icon); card.appendChild(info); card.appendChild(chev);
+    card.onclick = function() { loadVersions(song.title, song.artist); };
+    wrap.appendChild(card);
+  });
+}
+
+// ---- Versions ----
+function loadVersions(title, artist) {
+  document.getElementById("versionsTitle").textContent = title;
+  document.getElementById("versionsSub").textContent = artist;
+  document.getElementById("versionsList").innerHTML = "";
+  document.getElementById("versionsError").classList.remove("show");
+  document.getElementById("versionsLoader").classList.add("show");
+  goTo("versions","search");
+  fetch(BACKEND + "/versions", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({title: title, artist: artist})
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    currentVersions = data.versions || [];
+    renderVersions(currentVersions, title, artist);
+  }).catch(function(e) {
+    var el = document.getElementById("versionsError");
+    el.innerHTML = "Could not load versions. <div class='error-tip'>Loading best match instead...</div>";
+    el.classList.add("show");
+    setTimeout(function() { loadChords(title, artist, null, 0); }, 1500);
+  }).finally(function() {
+    document.getElementById("versionsLoader").classList.remove("show");
+  });
+}
+function renderVersions(versions, title, artist) {
+  var list = document.getElementById("versionsList");
+  list.innerHTML = "";
+  if (!versions.length) {
+    list.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;">No chord sheets found on Ultimate Guitar.</div>';
+    return;
+  }
+  var lbl = document.createElement("div");
+  lbl.className = "results-heading";
+  lbl.textContent = versions.length + " version" + (versions.length !== 1 ? "s" : "") + " on Ultimate Guitar";
+  list.appendChild(lbl);
+  versions.forEach(function(v, i) {
+    var card = document.createElement("div");
+    card.className = "version-card" + (i === 0 ? " best" : "");
+    var rating = v.rating ? Math.round(v.rating) : 0;
+    var stars = "";
+    for (var s = 0; s < 5; s++) stars += s < rating ? "★" : "☆";
+    var num = document.createElement("div"); num.className = "ver-num"; num.textContent = "Ver " + v.version;
+    var info = document.createElement("div"); info.className = "ver-info";
+    var sr = document.createElement("div"); sr.className = "ver-stars"; sr.textContent = stars;
+    var vt = document.createElement("div"); vt.className = "ver-votes"; vt.textContent = (v.votes || 0) + " votes";
+    info.appendChild(sr); info.appendChild(vt);
+    card.appendChild(num); card.appendChild(info);
+    if (i === 0) { var badge = document.createElement("div"); badge.className = "ver-badge"; badge.textContent = "Best"; card.appendChild(badge); }
+    (function(vv, idx) {
+      card.onclick = function() { loadChords(vv.title, vv.artist, vv.url, idx); };
+    })(v, i);
+    list.appendChild(card);
+  });
+}
+
+// ---- Chords ----
+function loadChords(title, artist, ugUrl, versionIdx) {
+  document.getElementById("chordTitle").textContent = title;
+  document.getElementById("chordArtist").textContent = artist;
+  document.getElementById("badgeRow").innerHTML = "";
+  document.getElementById("lyricsContent").innerHTML = "";
+  document.getElementById("chordError").classList.remove("show");
+  document.getElementById("chordLoader").classList.add("show");
+  transposeOffset = 0; capoOffset = 0; currentBpm = 0;
+  document.getElementById("transposeVal").textContent = "0";
+  document.getElementById("capoVal").textContent = "0";
+  document.getElementById("capoHint").textContent = "";
+  stopScroll(); loopSection = null; currentLineIdx = 0;
+  goTo("chord","versions");
+  fetch(BACKEND + "/chords", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({title: title, artist: artist, ug_url: ugUrl || null})
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || "Failed"); });
+    return r.json();
+  }).then(function(data) {
+    currentSong = data;
+    renderMeta(data, versionIdx);
+    renderLyrics(data.sections);
+    addHistory(data.title, data.artist);
+    updateFavBtn();
+
+  }).catch(function(e) {
+    var el = document.getElementById("chordError");
+    el.innerHTML = "<strong>Could not load chord sheet.</strong> <div class='error-tip'>" + e.message + "</div>";
+    el.classList.add("show");
+  }).finally(function() {
+    document.getElementById("chordLoader").classList.remove("show");
+  });
+}
+
+function renderMeta(song, versionIdx) {
+  var row = document.getElementById("badgeRow");
+  row.innerHTML = "";
+  if (song.key) { var b = document.createElement("span"); b.className = "badge key"; b.textContent = "Key of " + song.key; row.appendChild(b); }
+  if (song.bpm) { var b2 = document.createElement("span"); b2.className = "badge"; b2.textContent = song.bpm + " BPM"; row.appendChild(b2); }
+  currentBpm = 0; // reset so it uses song BPM
+  updateBpmDisplay();
+  if (currentVersions.length > 1) {
+    var btn = document.createElement("button"); btn.className = "ver-switch";
+    var v = currentVersions[versionIdx];
+    btn.textContent = "Ver " + (v ? v.version : versionIdx + 1) + " v";
+    btn.onclick = function() { goTo("versions","chord"); };
+    row.appendChild(btn);
+  }
+}
+
+// ---- Lyrics ----
+function parseLine(line) {
+  if (typeof line !== "string") return [];
+  var tokens = [], parts = line.split(/(\[[^\]]+\])/), pending = "";
+  parts.forEach(function(part) {
+    if (/^\[[^\]]+\]$/.test(part)) { pending = part.slice(1,-1); }
+    else {
+      part.split(/( +)/).forEach(function(w) {
+        if (!w) return;
+        if (/^ +$/.test(w)) { if (tokens.length) tokens[tokens.length-1].word += w; }
+        else { tokens.push({chord: pending, word: w}); pending = ""; }
+      });
+    }
+  });
+  if (!tokens.length && line.indexOf("[") >= 0) {
+    var m, re = /\[([^\]]+)\]/g;
+    while ((m = re.exec(line)) !== null) tokens.push({chord: m[1], word: " "});
+  }
+  return tokens;
+}
+
+function xposeChord(chord, offset) {
+  if (!chord || offset === 0) return chord;
+  var m = chord.match(/^([A-G][b#]?)(.*)$/);
+  if (!m) return chord;
+  var idx = NOTES.indexOf(m[1]);
+  if (idx < 0) return chord;
+  return NOTES[(idx + offset + 12) % 12] + m[2];
+}
+
+function renderLyrics(sections) {
+  var content = document.getElementById("lyricsContent");
+  content.innerHTML = "";
+  allLines = [];
+  var totalOffset = ((transposeOffset - capoOffset) % 12 + 12) % 12;
+  var chordSize = Math.max(10, Math.min(18, fontSize - 4));
+  (sections || []).forEach(function(section, si) {
+    var lbl = document.createElement("div");
+    lbl.className = "sec-label" + (loopSection === si ? " looping" : "");
+    lbl.textContent = section.label + (loopSection === si ? " (loop)" : "");
+    (function(sIdx) { lbl.onclick = function() { toggleLoop(sIdx); }; })(si);
+    content.appendChild(lbl);
+    (section.lines || []).forEach(function(line) {
+      var lineEl = document.createElement("div");
+      lineEl.className = "lyric-line";
+      lineEl.dataset.li = allLines.length;
+      var row = document.createElement("div"); row.className = "cw-row";
+      parseLine(line).forEach(function(tok) {
+        var cw = document.createElement("span"); cw.className = "cw";
+        var cs = document.createElement("span"); cs.className = "chord";
+        cs.style.fontSize = chordSize + "px";
+        var xp = tok.chord ? xposeChord(tok.chord, totalOffset) : "";
+        cs.textContent = xp ? xp + " " : " ";
+        if (xp) { (function(c) { cs.onclick = function(e) { e.stopPropagation(); showChordModal(c); }; })(xp); }
+        var ws = document.createElement("span"); ws.className = "word"; ws.style.fontSize = fontSize + "px";
+        ws.textContent = tok.word;
+        cw.appendChild(cs); cw.appendChild(ws); row.appendChild(cw);
+      });
+      lineEl.appendChild(row); content.appendChild(lineEl);
+      allLines.push({el: lineEl, section: si});
+    });
+  });
+}
+
+function toggleLoop(si) { loopSection = loopSection === si ? null : si; if (currentSong) renderLyrics(currentSong.sections); }
+function highlightLine() {}
+
+// ---- Controls ----
+function transpose(dir) {
+  transposeOffset = (transposeOffset + dir + 12) % 12;
+  var d = transposeOffset <= 6 ? transposeOffset : transposeOffset - 12;
+  document.getElementById("transposeVal").textContent = (d > 0 ? "+" : "") + d;
+  if (currentSong) renderLyrics(currentSong.sections);
+}
+function adjCapo(dir) {
+  capoOffset = Math.max(0, Math.min(11, capoOffset + dir));
+  document.getElementById("capoVal").textContent = capoOffset;
+  document.getElementById("capoHint").textContent = capoOffset > 0 ? "(capo " + capoOffset + ")" : "";
+  if (currentSong) renderLyrics(currentSong.sections);
+}
+function adjSize(dir) {
+  fontSize = Math.max(13, Math.min(22, fontSize + dir));
+  if (currentSong) renderLyrics(currentSong.sections);
+}
+function setInstrument(val) { instrument = val; }
+
+// ---- Autoscroll ----
+function toggleScroll() { scrolling ? stopScroll() : startScroll(); }
+function startScroll() {
+  scrolling = true;
+  document.getElementById("scrollBtn").classList.add("active");
+  document.getElementById("scrollBtn").textContent = "Pause";
+  runScroll();
+}
+function stopScroll() {
+  scrolling = false;
+  if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  scrollRaf = null;
+  var btn = document.getElementById("scrollBtn");
+  if (btn) { btn.classList.remove("active"); btn.textContent = "Scroll"; }
+}
+
+function adjBpm(dir) {
+  if (currentBpm === 0) currentBpm = (currentSong && currentSong.bpm) ? parseInt(currentSong.bpm) : 80;
+  currentBpm = Math.max(20, Math.min(300, currentBpm + dir));
+  updateBpmDisplay();
+  if (scrolling) runScroll();
+}
+function updateBpmDisplay() {
+  var bpm = currentBpm || ((currentSong && currentSong.bpm) ? parseInt(currentSong.bpm) : 0);
+  var el = document.getElementById("bpmDisplay");
+  if (el) el.value = bpm || "";
+}
+function onBpmInput(val) {
+  var n = parseInt(val);
+  if (!isNaN(n) && n >= 20 && n <= 300) {
+    currentBpm = n;
+    if (scrolling) runScroll();
+  }
+}
+function getScrollBpm() {
+  if (currentBpm > 0) return currentBpm;
+  if (currentSong && currentSong.bpm) return parseInt(currentSong.bpm);
+  return 80;
+}
+function runScroll() {
+  if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  var pxPerBeat = 12;
+  var accumulated = document.getElementById("chordScroll") ? document.getElementById("chordScroll").scrollTop : 0;
+  var lastTs = null;
+  function frame(ts) {
+    if (!scrolling) return;
+    if (!lastTs) lastTs = ts;
+    var dt = Math.min(ts - lastTs, 50); // cap at 50ms to avoid jumps
+    lastTs = ts;
+    var bpm = getScrollBpm();
+    var pxPerMs = (pxPerBeat * bpm) / 60000;
+    accumulated += pxPerMs * dt;
+    var el = document.getElementById("chordScroll");
+    if (loopSection !== null) {
+      var slines = allLines.filter(function(l) { return l.section === loopSection; });
+      if (slines.length) {
+        var lastEl = slines[slines.length-1].el;
+        if (el.scrollTop + el.clientHeight >= lastEl.offsetTop + lastEl.offsetHeight - 10) {
+          el.scrollTop = slines[0].el.offsetTop - 20;
+          lastTs = null;
+          scrollRaf = requestAnimationFrame(frame); return;
+        }
+      }
+    }
+    // Use fractional scrollTop via CSS transform trick for sub-pixel smoothness
+    accumulated += pxPerMs * dt;
+    el.scrollTop = accumulated;
+    if (!loopSection && el.scrollTop + el.clientHeight >= el.scrollHeight - 10) { stopScroll(); return; }
+    scrollRaf = requestAnimationFrame(frame);
+  }
+  scrollRaf = requestAnimationFrame(frame);
+}
+
+// ---- Chord Modal ----
+var CHORD_DEFS = {
+  "":    [0,4,7], "m":[0,3,7], "7":[0,4,7,10], "maj7":[0,4,7,11],
+  "m7":  [0,3,7,10], "sus2":[0,2,7], "sus4":[0,5,7],
+  "dim": [0,3,6], "dim7":[0,3,6,9], "aug":[0,4,8],
+  "6":   [0,4,7,9], "m6":[0,3,7,9], "9":[0,4,7,10,14]
+};
+var WHITE_NOTES = [0,2,4,5,7,9,11];
+var BLACK_POS = {1:22,3:60,6:136,8:174,10:212};
+var GUITAR_CHORDS = {
+  "C":{f:[0,1,0,2,3,-1]}, "Cm":{f:[3,4,5,5,3,3],b:3}, "C7":{f:[0,1,3,2,3,-1]},
+  "D":{f:[2,3,2,0,-1,-1]}, "Dm":{f:[1,3,2,0,-1,-1]}, "D7":{f:[2,1,2,0,-1,-1]},
+  "E":{f:[0,0,1,2,2,0]}, "Em":{f:[0,0,0,2,2,0]}, "E7":{f:[0,0,1,0,2,0]},
+  "F":{f:[1,1,2,3,3,1],b:1}, "Fm":{f:[1,1,1,3,3,1],b:1}, "F7":{f:[1,1,2,1,3,1],b:1},
+  "G":{f:[3,0,0,0,2,3]}, "Gm":{f:[3,3,3,5,5,3],b:3}, "G7":{f:[1,0,0,0,2,3]},
+  "A":{f:[0,2,2,2,0,-1]}, "Am":{f:[0,1,2,2,0,-1]}, "A7":{f:[0,2,0,2,0,-1]},
+  "B":{f:[2,4,4,4,2,2],b:2}, "Bm":{f:[2,3,4,4,2,2],b:2}, "B7":{f:[0,2,1,2,2,-1]},
+  "Bb":{f:[1,1,3,3,3,1],b:1}, "F#":{f:[2,2,3,4,4,2],b:2}, "F#m":{f:[2,2,2,4,4,2],b:2}
+};
+
+function parseChord(chord) {
+  var m = chord.match(/^([A-G][b#]?)(.*?)(?:\/.*)?$/);
+  if (!m) return null;
+  var root = m[1], quality = m[2] || "";
+  var flatMap = {"Bb":"A#","Eb":"D#","Ab":"G#","Db":"C#","Gb":"F#"};
+  if (flatMap[root]) root = flatMap[root];
+  var rootIdx = NOTES.indexOf(root);
+  if (rootIdx < 0) return null;
+  var intervals = CHORD_DEFS[quality];
+  if (!intervals) { quality = ""; intervals = CHORD_DEFS[""]; }
+  var notes = intervals.map(function(i) { return (rootIdx + i % 12) % 12; });
+  return {root:root, quality:quality, rootIdx:rootIdx, notes:notes, noteNames:notes.map(function(n) { return NOTES[n]; })};
+}
+
+function showChordModal(chordName) {
+  var parsed = parseChord(chordName);
+  if (!parsed) return;
+  document.getElementById("modalTitle").textContent = chordName;
+  document.getElementById("modalNotes").textContent = parsed.noteNames.join(" - ");
+  document.getElementById("pianoWrap").style.display = instrument === "piano" ? "" : "none";
+  document.getElementById("fretWrap").style.display = instrument === "guitar" ? "" : "none";
+  if (instrument === "piano") drawPiano(parsed.notes);
+  else drawGuitar(chordName, parsed);
+  drawVars(chordName, parsed);
+  document.getElementById("chordOverlay").classList.add("open");
+}
+
+function drawPiano(activeNotes) {
+  var wrap = document.getElementById("pianoWrap");
+  wrap.innerHTML = "";
+  var totalW = 7 * 2 * 38 + 4;
+  var piano = document.createElement("div");
+  piano.className = "piano";
+  piano.style.width = totalW + "px";
+  wrap.appendChild(piano);
+  for (var oct = 0; oct < 2; oct++) {
+    var ox = oct * 7 * 38;
+    WHITE_NOTES.forEach(function(n, wi) {
+      var k = document.createElement("div"); k.className = "wk" + (activeNotes.indexOf(n) >= 0 ? " on" : "");
+      k.style.left = (ox + wi * 38) + "px"; piano.appendChild(k);
+    });
+    Object.keys(BLACK_POS).forEach(function(n) {
+      var k = document.createElement("div"); k.className = "bk" + (activeNotes.indexOf(parseInt(n)) >= 0 ? " on" : "");
+      k.style.left = (ox + BLACK_POS[n]) + "px"; piano.appendChild(k);
+    });
+  }
+}
+
+function drawGuitar(chordName, parsed) {
+  var wrap = document.getElementById("fretWrap");
+  wrap.innerHTML = "";
+  var base = chordName.replace(/\/.*$/,"");
+  var chord = GUITAR_CHORDS[base] || GUITAR_CHORDS[parsed.root] || null;
+  if (!chord) {
+    var p = document.createElement("p");
+    p.style = "text-align:center;color:var(--text3);font-size:13px;padding:16px;";
+    p.textContent = "No guitar diagram for " + chordName;
+    wrap.appendChild(p); return;
+  }
+  var strings = 6, frets = 5, cw = 38, ch = 28;
+  var pl = 28, pt = 26, W = pl + cw * (strings-1) + 20, H = pt + ch * frets + 20;
+  var ns = ["e","B","G","D","A","E"];
+  var svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width",W); svg.setAttribute("height",H);
+  svg.setAttribute("viewBox","0 0 " + W + " " + H);
+  svg.style.display = "block"; svg.style.margin = "0 auto";
+  var dark = window.matchMedia("(prefers-color-scheme:dark)").matches;
+  var tc = dark ? "#f0f0ee" : "#111", bc = dark ? "#2a2a2a" : "#e8e8e6", ac = "#2563eb";
+  function el(tag, attrs, txt) {
+    var e = document.createElementNS("http://www.w3.org/2000/svg",tag);
+    Object.keys(attrs).forEach(function(k) { e.setAttribute(k,attrs[k]); });
+    if (txt !== undefined) e.textContent = txt; return e;
+  }
+  svg.appendChild(el("rect",{x:pl-2,y:pt-4,width:cw*(strings-1)+4,height:4,fill:tc,rx:1}));
+  for (var f = 0; f <= frets; f++) {
+    var y = pt + f * ch;
+    svg.appendChild(el("line",{x1:pl,y1:y,x2:pl+cw*(strings-1),y2:y,stroke:bc,"stroke-width":1.5}));
+  }
+  for (var s = 0; s < strings; s++) {
+    var x = pl + s * cw;
+    svg.appendChild(el("line",{x1:x,y1:pt,x2:x,y2:pt+ch*frets,stroke:tc,"stroke-width":1}));
+    svg.appendChild(el("text",{x:x,y:pt+ch*frets+14,"font-size":9,"text-anchor":"middle",fill:tc+"88"},ns[s]));
+  }
+  if (chord.b) {
+    var brow = chord.b, bx1 = pl, bx2 = pl + cw * (strings-1), by = pt + (brow - 0.5) * ch;
+    svg.appendChild(el("rect",{x:bx1,y:by-9,width:bx2-bx1,height:18,rx:9,fill:ac}));
+  }
+  chord.f.forEach(function(fret, si) {
+    var sx = pl + si * cw;
+    if (fret < 0) {
+      svg.appendChild(el("text",{x:sx,y:pt-8,"font-size":11,"text-anchor":"middle",fill:tc+"66"},"x"));
+    } else if (fret === 0) {
+      svg.appendChild(el("circle",{cx:sx,cy:pt-9,r:5,fill:"none",stroke:ac,"stroke-width":1.5}));
+    } else if (fret <= frets) {
+      var fy = pt + (fret - 0.5) * ch;
+      svg.appendChild(el("circle",{cx:sx,cy:fy,r:11,fill:ac}));
+    }
+  });
+  wrap.appendChild(svg);
+}
+
+function drawVars(chordName, parsed) {
+  var pills = document.getElementById("varPills");
+  pills.innerHTML = "";
+  var qs = ["","m","7","maj7","m7","sus2","sus4","dim","aug"];
+  var labels = {"":"Major","m":"Minor","7":"Dom 7","maj7":"Maj 7","m7":"Min 7","sus2":"Sus2","sus4":"Sus4","dim":"Dim","aug":"Aug"};
+  qs.forEach(function(q) {
+    var pill = document.createElement("button");
+    pill.className = "var-pill" + (q === parsed.quality ? " active" : "");
+    pill.textContent = parsed.root + q + " " + labels[q];
+    (function(qq) {
+      pill.onclick = function() {
+        document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
+        pill.classList.add("active");
+        var np = parseChord(parsed.root + qq);
+        if (np) {
+          document.getElementById("modalTitle").textContent = parsed.root + qq;
+          document.getElementById("modalNotes").textContent = np.noteNames.join(" - ");
+          if (instrument === "piano") drawPiano(np.notes);
+          else drawGuitar(parsed.root + qq, np);
+        }
+      };
+    })(q);
+    pills.appendChild(pill);
+  });
+}
+
+function closeChordModal(e) {
+  if (e.target === document.getElementById("chordOverlay")) {
+    document.getElementById("chordOverlay").classList.remove("open");
+  }
+}
+
+// ---- Share ----
+
+
+
+
+
+
+
+// ---- Init ----
+renderRecent();
+document.getElementById("searchInput").addEventListener("keydown", function(e) {
+  if (e.key === "Enter") doSearch();
+});
+
+
+history.pushState({page:"search"}, "", "");
+</script>
+</body>
+</html>
