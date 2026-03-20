@@ -1,7 +1,6 @@
 fastapi
 uvicorn[standard]
-anthropic
+requests
 yt-dlp
 pydantic
 python-dotenv
-requests
