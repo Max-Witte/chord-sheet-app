@@ -292,7 +292,7 @@ GENRES = [
     "Alternative", "Indie", "Electronic"
 ]
 
-def fetch_top_100(pages=4):
+def fetch_top_100(pages=1):
     """Fetch UG's top chord sheets across multiple pages."""
     all_songs = []
     seen = set()
@@ -315,7 +315,7 @@ def fetch_top_100(pages=4):
     return all_songs
 
 
-def fetch_by_genre(genre, pages=4):
+def fetch_by_genre(genre, pages=1):
     """Fetch chord sheets filtered by genre across multiple pages."""
     all_songs = []
     seen = set()
