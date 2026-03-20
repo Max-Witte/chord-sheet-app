@@ -110,7 +110,7 @@ Return ONLY valid JSON:
     return _parse_json(raw)
 
 
-def search_songs(query):
+def search_songs_gemini(query):
     """Return songs matching the query."""
     prompt = f"""You are a music database. The user searched for: "{query}"
 
