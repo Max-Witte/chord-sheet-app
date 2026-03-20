@@ -122,6 +122,7 @@ def fetch_ug_chords(tab_url):
         return None
 
     print(f"UG: got content ({len(content)} chars)")
+    print("UG content preview:", repr(content[:800]))
 
     meta = tab_view.get("tab", {})
     return {
