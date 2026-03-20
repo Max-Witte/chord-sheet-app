@@ -3,6 +3,7 @@ import json
 import re
 from urllib.parse import quote
 import os
+from html import unescape
 
 SCRAPEOPS_API_KEY = os.environ.get("SCRAPEOPS_API_KEY", "")
 
@@ -33,12 +34,7 @@ def _extract_store_data(html):
     """Extract the js-store JSON blob from UG HTML."""
     match = re.search(r'data-content="([^"]+)"', html)
     if match:
-        raw = (match.group(1)
-               .replace("&quot;", '"')
-               .replace("&amp;", "&")
-               .replace("&#039;", "'")
-               .replace("&lt;", "<")
-               .replace("&gt;", ">"))
+        raw = unescape(match.group(1).replace("&quot;", '"'))
         try:
             return json.loads(raw)
         except Exception as e:
