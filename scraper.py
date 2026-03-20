@@ -292,22 +292,50 @@ GENRES = [
     "Alternative", "Indie", "Electronic"
 ]
 
-def fetch_top_100():
-    """Fetch UG's top 100 chord sheets."""
-    url = "https://www.ultimate-guitar.com/top?type=Chords"
-    html = _fetch(url)
-    if not html:
-        return []
-    return _parse_explore_results(html)
+def fetch_top_100(pages=4):
+    """Fetch UG's top chord sheets across multiple pages."""
+    all_songs = []
+    seen = set()
+    for page in range(1, pages + 1):
+        url = f"https://www.ultimate-guitar.com/top?type=Chords&page={page}"
+        html = _fetch(url)
+        if not html:
+            break
+        songs = _parse_explore_results(html)
+        if not songs:
+            break
+        for s in songs:
+            key = s["title"].lower() + "|||" + s["artist"].lower()
+            if key not in seen:
+                seen.add(key)
+                all_songs.append(s)
+        print(f"Top100 page {page}: {len(songs)} songs, total {len(all_songs)}")
+        if len(songs) < 25:
+            break
+    return all_songs
 
 
-def fetch_by_genre(genre):
-    """Fetch chord sheets filtered by genre."""
-    url = f"https://www.ultimate-guitar.com/explore?genres[]={genre}&type[]=Chords&order=rating_desc"
-    html = _fetch(url)
-    if not html:
-        return []
-    return _parse_explore_results(html)
+def fetch_by_genre(genre, pages=4):
+    """Fetch chord sheets filtered by genre across multiple pages."""
+    all_songs = []
+    seen = set()
+    for page in range(1, pages + 1):
+        url = f"https://www.ultimate-guitar.com/explore?genres[]={genre}&type[]=Chords&order=rating_desc&page={page}"
+        html = _fetch(url)
+        if not html:
+            break
+        songs = _parse_explore_results(html)
+        if not songs:
+            break
+        for s in songs:
+            key = s["title"].lower() + "|||" + s["artist"].lower()
+            if key not in seen:
+                seen.add(key)
+                all_songs.append(s)
+        print(f"Genre {genre} page {page}: {len(songs)} songs, total {len(all_songs)}")
+        if len(songs) < 25:
+            break  # Last page
+    return all_songs
 
 
 def _parse_explore_results(html):
@@ -338,4 +366,4 @@ def _parse_explore_results(html):
         })
 
     print(f"Charts: found {len(songs)} songs")
-    return songs[:100]
+    return songs[:200]
