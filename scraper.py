@@ -215,6 +215,8 @@ def parse_ug_content(content):
 
         return result.strip()
 
+    pending_chords = None
+
     # Split content on [tab]...[/tab] blocks
     parts = re.split(r'(\[tab\].*?\[/tab\])', content, flags=re.DOTALL)
 
@@ -250,7 +252,25 @@ def parse_ug_content(content):
                 if current_label is None:
                     continue
 
-                current_lines.append(line)
+                # Skip bar lines (| | | |)
+                if re.match(r'^[|\s]+$', line):
+                    continue
+
+                # Check if this is a chord-only line — hold it for next lyric
+                chord_only = bool(re.findall(r'\[[A-G][^\]]{0,6}\]', line)) and                              not re.sub(r'\[[^\]]+\]', '', line).strip()
+
+                if chord_only:
+                    pending_chords = line
+                else:
+                    # Merge any pending chord line onto this lyric line
+                    if pending_chords:
+                        line = merge_chords_onto_lyric(pending_chords, line)
+                        pending_chords = None
+                    current_lines.append(line)
+
+    # Flush any remaining pending chords as chord-only line
+    if pending_chords and current_label:
+        current_lines.append(pending_chords)
 
     flush()
 
