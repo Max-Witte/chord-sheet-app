@@ -342,7 +342,7 @@
     <div class="page-nav">
       <button class="back-btn" onclick="goTo('search','versions')">&#8249; Back</button>
       <div style="flex:1"></div>
-      <button class="back-btn" id="refreshBtn" onclick="refreshVersions()" style="color:var(--text2);">&#8635; Refresh</button>
+      <button class="back-btn" id="refreshBtn" onclick="refreshVersions()" style="color:var(--text2);">↻ Refresh</button>
     </div>
     <div class="page-title" id="versionsTitle"></div>
     <div class="page-sub" id="versionsSub"></div>
@@ -800,7 +800,7 @@ function loadVersions(title, artist, forceRefresh) {
   }).finally(function() {
     document.getElementById("versionsLoader").classList.remove("show");
     var btn = document.getElementById("refreshBtn");
-    if (btn) { btn.textContent = "&#8635; Refresh"; btn.style.opacity = "1"; btn.disabled = false; }
+    if (btn) { btn.textContent = "↻ Refresh"; btn.style.opacity = "1"; btn.disabled = false; }
   });
 }
 
