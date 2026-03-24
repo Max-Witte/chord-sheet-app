@@ -341,6 +341,8 @@
   <div class="page-header">
     <div class="page-nav">
       <button class="back-btn" onclick="goTo('search','versions')">&#8249; Back</button>
+      <div style="flex:1"></div>
+      <button class="back-btn" id="refreshBtn" onclick="refreshVersions()" style="color:var(--text2);">&#8635; Refresh</button>
     </div>
     <div class="page-title" id="versionsTitle"></div>
     <div class="page-sub" id="versionsSub"></div>
@@ -360,8 +362,8 @@
   <div class="chord-nav">
     <button class="back-btn" onclick="goTo('versions','chord')">&#8249; Back</button>
     <div class="chord-actions">
+      <button class="icon-action" id="chordRefreshBtn" onclick="refreshChords()" title="Refresh chords" style="font-size:18px;min-width:38px;min-height:38px;color:var(--text2);">&#8635;</button>
       <button class="icon-action" id="favBtn" onclick="toggleFav()" title="Save" style="font-size:26px;min-width:44px;min-height:44px;color:var(--text2);">&#9825;</button>
-      
     </div>
   </div>
   <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;" id="chordScroll">
@@ -776,17 +778,17 @@ function renderSongList(id, songs, emptyMsg) {
 }
 
 // ---- Versions ----
-function loadVersions(title, artist) {
+function loadVersions(title, artist, forceRefresh) {
   document.getElementById("versionsTitle").textContent = title;
   document.getElementById("versionsSub").textContent = artist;
   document.getElementById("versionsList").innerHTML = "";
   document.getElementById("versionsError").classList.remove("show");
   document.getElementById("versionsLoader").classList.add("show");
-  goTo("versions","search");
+  if (!forceRefresh) goTo("versions","search");
   fetch(BACKEND + "/versions", {
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({title: title, artist: artist})
+    body: JSON.stringify({title: title, artist: artist, force_refresh: forceRefresh || false})
   }).then(function(r) { return r.json(); }).then(function(data) {
     currentVersions = data.versions || [];
     renderVersions(currentVersions, title, artist);
@@ -797,7 +799,20 @@ function loadVersions(title, artist) {
     setTimeout(function() { loadChords(title, artist, null, 0); }, 1500);
   }).finally(function() {
     document.getElementById("versionsLoader").classList.remove("show");
+    var btn = document.getElementById("refreshBtn");
+    if (btn) { btn.textContent = "&#8635; Refresh"; btn.style.opacity = "1"; btn.disabled = false; }
   });
+}
+
+function refreshVersions() {
+  var title = document.getElementById("versionsTitle").textContent;
+  var artist = document.getElementById("versionsSub").textContent;
+  if (!title) return;
+  var btn = document.getElementById("refreshBtn");
+  btn.textContent = "Refreshing...";
+  btn.style.opacity = "0.5";
+  btn.disabled = true;
+  loadVersions(title, artist, true);
 }
 function renderVersions(versions, title, artist) {
   var list = document.getElementById("versionsList");
@@ -831,6 +846,39 @@ function renderVersions(versions, title, artist) {
 }
 
 // ---- Chords ----
+function refreshChords() {
+  if (!currentSong) return;
+  var btn = document.getElementById("chordRefreshBtn");
+  btn.style.opacity = "0.4";
+  btn.disabled = true;
+  var title = currentSong.title, artist = currentSong.artist;
+  document.getElementById("lyricsContent").innerHTML = "";
+  document.getElementById("chordError").classList.remove("show");
+  document.getElementById("chordLoader").classList.add("show");
+  fetch(BACKEND + "/chords", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({title: title, artist: artist, ug_url: null, force_refresh: true})
+  }).then(function(r) {
+    if (!r.ok) return r.json().then(function(e) { throw new Error(e.detail || "Failed"); });
+    return r.json();
+  }).then(function(data) {
+    currentSong = data;
+    renderMeta(data, 0);
+    renderLyrics(data.sections);
+    addHistory(data.title, data.artist);
+    updateFavBtn();
+  }).catch(function(e) {
+    var el = document.getElementById("chordError");
+    el.innerHTML = "<strong>Refresh failed.</strong> <div class='error-tip'>" + e.message + "</div>";
+    el.classList.add("show");
+  }).finally(function() {
+    document.getElementById("chordLoader").classList.remove("show");
+    btn.style.opacity = "1";
+    btn.disabled = false;
+  });
+}
+
 function loadChords(title, artist, ugUrl, versionIdx) {
   document.getElementById("chordTitle").textContent = title;
   document.getElementById("chordArtist").textContent = artist;
@@ -1163,28 +1211,73 @@ function drawGuitar(chordName, parsed) {
   wrap.appendChild(svg);
 }
 
+function getVoicings(parsed) {
+  // Returns array of {label, notes} for different voicings/inversions of the chord
+  var root = parsed.rootIdx;
+  var intervals = CHORD_DEFS[parsed.quality] || CHORD_DEFS[""];
+  var voicings = [];
+
+  // Root position
+  voicings.push({
+    label: "Root",
+    notes: intervals.map(function(i) { return (root + i) % 12; })
+  });
+
+  // First inversion (move root to top)
+  if (intervals.length >= 2) {
+    var inv1 = intervals.slice(1).concat([intervals[0] + 12]);
+    var base1 = inv1[0];
+    voicings.push({
+      label: "1st inv",
+      notes: inv1.map(function(i) { return (root + i) % 12; })
+    });
+  }
+
+  // Second inversion (move bottom two to top)
+  if (intervals.length >= 3) {
+    var inv2 = intervals.slice(2).concat([intervals[0] + 12, intervals[1] + 12]);
+    voicings.push({
+      label: "2nd inv",
+      notes: inv2.map(function(i) { return (root + i) % 12; })
+    });
+  }
+
+  // Third inversion for 7th chords
+  if (intervals.length >= 4) {
+    var inv3 = intervals.slice(3).concat([intervals[0]+12, intervals[1]+12, intervals[2]+12]);
+    voicings.push({
+      label: "3rd inv",
+      notes: inv3.map(function(i) { return (root + i) % 12; })
+    });
+  }
+
+  // Open voicing (spread notes across wider range)
+  voicings.push({
+    label: "Open",
+    notes: intervals.map(function(i, idx) {
+      return (root + i + (idx % 2 === 1 ? 12 : 0)) % 12;
+    })
+  });
+
+  return voicings;
+}
+
 function drawVars(chordName, parsed) {
   var pills = document.getElementById("varPills");
   pills.innerHTML = "";
-  var qs = ["","m","7","maj7","m7","sus2","sus4","dim","aug"];
-  var labels = {"":"Major","m":"Minor","7":"Dom 7","maj7":"Maj 7","m7":"Min 7","sus2":"Sus2","sus4":"Sus4","dim":"Dim","aug":"Aug"};
-  qs.forEach(function(q) {
+  var voicings = getVoicings(parsed);
+  voicings.forEach(function(v, idx) {
     var pill = document.createElement("button");
-    pill.className = "var-pill" + (q === parsed.quality ? " active" : "");
-    pill.textContent = parsed.root + q + " " + labels[q];
-    (function(qq) {
+    pill.className = "var-pill" + (idx === 0 ? " active" : "");
+    pill.textContent = v.label;
+    (function(notes) {
       pill.onclick = function() {
         document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
         pill.classList.add("active");
-        var np = parseChord(parsed.root + qq);
-        if (np) {
-          document.getElementById("modalTitle").textContent = parsed.root + qq;
-          document.getElementById("modalNotes").textContent = np.noteNames.join(" - ");
-          if (instrument === "piano") drawPiano(np.notes);
-          else drawGuitar(parsed.root + qq, np);
-        }
+        if (instrument === "piano") drawPiano(notes);
+        document.getElementById("modalNotes").textContent = notes.map(function(n) { return NOTES[n]; }).join(" - ");
       };
-    })(q);
+    })(v.notes);
     pills.appendChild(pill);
   });
 }
