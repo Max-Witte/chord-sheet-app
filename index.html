@@ -1056,34 +1056,37 @@ function getScrollBpm() {
   if (currentSong && currentSong.bpm) return parseInt(currentSong.bpm);
   return 80;
 }
+// Shared accumulated position — synced by manual scroll listener
+var scrollAccumulated = 0;
+
 function runScroll() {
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  var el = document.getElementById("chordScroll");
+  scrollAccumulated = el ? el.scrollTop : 0;
   var pxPerBeat = 12;
-  var accumulated = document.getElementById("chordScroll") ? document.getElementById("chordScroll").scrollTop : 0;
   var lastTs = null;
   function frame(ts) {
     if (!scrolling) return;
     if (!lastTs) lastTs = ts;
-    var dt = Math.min(ts - lastTs, 50); // cap at 50ms to avoid jumps
+    var dt = Math.min(ts - lastTs, 50);
     lastTs = ts;
     var bpm = getScrollBpm();
     var pxPerMs = (pxPerBeat * bpm) / 60000;
-    accumulated += pxPerMs * dt;
+    scrollAccumulated += pxPerMs * dt;
     var el = document.getElementById("chordScroll");
     if (loopSection !== null) {
       var slines = allLines.filter(function(l) { return l.section === loopSection; });
       if (slines.length) {
         var lastEl = slines[slines.length-1].el;
         if (el.scrollTop + el.clientHeight >= lastEl.offsetTop + lastEl.offsetHeight - 10) {
-          el.scrollTop = slines[0].el.offsetTop - 20;
+          scrollAccumulated = slines[0].el.offsetTop - 20;
+          el.scrollTop = scrollAccumulated;
           lastTs = null;
           scrollRaf = requestAnimationFrame(frame); return;
         }
       }
     }
-    // Use fractional scrollTop via CSS transform trick for sub-pixel smoothness
-    accumulated += pxPerMs * dt;
-    el.scrollTop = accumulated;
+    el.scrollTop = scrollAccumulated;
     if (!loopSection && el.scrollTop + el.clientHeight >= el.scrollHeight - 10) { stopScroll(); return; }
     scrollRaf = requestAnimationFrame(frame);
   }
@@ -1099,15 +1102,63 @@ var CHORD_DEFS = {
 };
 var WHITE_NOTES = [0,2,4,5,7,9,11];
 var BLACK_POS = {1:22,3:60,6:136,8:174,10:212};
+// Each chord has an array of fingerings: {label, f:[e,B,G,D,A,E], b:barre, sf:startFret}
 var GUITAR_CHORDS = {
-  "C":{f:[0,1,0,2,3,-1]}, "Cm":{f:[3,4,5,5,3,3],b:3}, "C7":{f:[0,1,3,2,3,-1]},
-  "D":{f:[2,3,2,0,-1,-1]}, "Dm":{f:[1,3,2,0,-1,-1]}, "D7":{f:[2,1,2,0,-1,-1]},
-  "E":{f:[0,0,1,2,2,0]}, "Em":{f:[0,0,0,2,2,0]}, "E7":{f:[0,0,1,0,2,0]},
-  "F":{f:[1,1,2,3,3,1],b:1}, "Fm":{f:[1,1,1,3,3,1],b:1}, "F7":{f:[1,1,2,1,3,1],b:1},
-  "G":{f:[3,0,0,0,2,3]}, "Gm":{f:[3,3,3,5,5,3],b:3}, "G7":{f:[1,0,0,0,2,3]},
-  "A":{f:[0,2,2,2,0,-1]}, "Am":{f:[0,1,2,2,0,-1]}, "A7":{f:[0,2,0,2,0,-1]},
-  "B":{f:[2,4,4,4,2,2],b:2}, "Bm":{f:[2,3,4,4,2,2],b:2}, "B7":{f:[0,2,1,2,2,-1]},
-  "Bb":{f:[1,1,3,3,3,1],b:1}, "F#":{f:[2,2,3,4,4,2],b:2}, "F#m":{f:[2,2,2,4,4,2],b:2}
+  "C":  [{label:"Open",    f:[0,1,0,2,3,-1]},
+         {label:"Barre 3", f:[3,5,5,5,3,3],b:3},
+         {label:"Hi 8",    f:[8,8,9,10,10,8],b:8,sf:7}],
+  "Cm": [{label:"Barre 3", f:[3,4,5,5,3,3],b:3},
+         {label:"Barre 8", f:[8,8,8,10,10,8],b:8,sf:7}],
+  "C7": [{label:"Open",    f:[0,1,3,2,3,-1]},
+         {label:"Barre 3", f:[3,5,3,5,3,3],b:3}],
+  "D":  [{label:"Open",    f:[2,3,2,0,-1,-1]},
+         {label:"Barre 5", f:[5,7,7,7,5,5],b:5,sf:4}],
+  "Dm": [{label:"Open",    f:[1,3,2,0,-1,-1]},
+         {label:"Barre 5", f:[5,6,7,7,5,5],b:5,sf:4}],
+  "D7": [{label:"Open",    f:[2,1,2,0,-1,-1]},
+         {label:"Barre 5", f:[5,7,5,7,5,5],b:5,sf:4}],
+  "E":  [{label:"Open",    f:[0,0,1,2,2,0]},
+         {label:"Barre 7", f:[7,9,9,9,7,7],b:7,sf:6}],
+  "Em": [{label:"Open",    f:[0,0,0,2,2,0]},
+         {label:"Barre 7", f:[7,8,9,9,7,7],b:7,sf:6}],
+  "E7": [{label:"Open",    f:[0,0,1,0,2,0]},
+         {label:"Alt",     f:[0,3,1,2,2,0]}],
+  "F":  [{label:"Barre 1", f:[1,1,2,3,3,1],b:1},
+         {label:"Mini",    f:[1,1,2,3,-1,-1]},
+         {label:"Barre 8", f:[8,10,10,10,8,8],b:8,sf:7}],
+  "Fm": [{label:"Barre 1", f:[1,1,1,3,3,1],b:1},
+         {label:"Barre 8", f:[8,9,10,10,8,8],b:8,sf:7}],
+  "F7": [{label:"Barre 1", f:[1,1,2,1,3,1],b:1},
+         {label:"Alt",     f:[1,3,1,2,3,1],b:1}],
+  "G":  [{label:"Open",    f:[3,0,0,0,2,3]},
+         {label:"Alt",     f:[3,3,0,0,2,3]},
+         {label:"Barre 3", f:[3,5,5,4,3,3],b:3}],
+  "Gm": [{label:"Barre 3", f:[3,3,3,5,5,3],b:3},
+         {label:"Barre 10",f:[10,11,12,12,10,10],b:10,sf:9}],
+  "G7": [{label:"Open",    f:[1,0,0,0,2,3]},
+         {label:"Barre 3", f:[3,5,3,4,3,3],b:3}],
+  "A":  [{label:"Open",    f:[0,2,2,2,0,-1]},
+         {label:"Barre",   f:[0,2,2,2,0,-1]},
+         {label:"Barre 5", f:[5,7,7,6,5,5],b:5,sf:4}],
+  "Am": [{label:"Open",    f:[0,1,2,2,0,-1]},
+         {label:"Barre 5", f:[5,5,5,7,7,5],b:5,sf:4}],
+  "A7": [{label:"Open",    f:[0,2,0,2,0,-1]},
+         {label:"Barre 5", f:[5,7,5,6,5,5],b:5,sf:4}],
+  "B":  [{label:"Barre 2", f:[2,4,4,4,2,2],b:2},
+         {label:"Barre 7", f:[7,9,9,8,7,7],b:7,sf:6}],
+  "Bm": [{label:"Barre 2", f:[2,3,4,4,2,2],b:2},
+         {label:"Mini",    f:[2,3,4,4,-1,-1]},
+         {label:"Barre 7", f:[7,7,7,9,9,7],b:7,sf:6}],
+  "B7": [{label:"Open",    f:[0,2,1,2,2,-1]},
+         {label:"Barre 7", f:[7,9,7,8,7,7],b:7,sf:6}],
+  "Bb": [{label:"Barre 1", f:[1,1,3,3,3,1],b:1},
+         {label:"Barre 6", f:[6,8,8,7,6,6],b:6,sf:5}],
+  "A#": [{label:"Barre 1", f:[1,1,3,3,3,1],b:1},
+         {label:"Barre 6", f:[6,8,8,7,6,6],b:6,sf:5}],
+  "F#": [{label:"Barre 2", f:[2,2,3,4,4,2],b:2},
+         {label:"Barre 9", f:[9,11,11,11,9,9],b:9,sf:8}],
+  "F#m":[{label:"Barre 2", f:[2,2,2,4,4,2],b:2},
+         {label:"Barre 9", f:[9,10,11,11,9,9],b:9,sf:8}]
 };
 
 function parseChord(chord) {
@@ -1158,19 +1209,17 @@ function drawPiano(activeNotes) {
   }
 }
 
-function drawGuitar(chordName, parsed) {
+function drawGuitarFingering(fingering) {
+  // Draw a specific guitar fingering object {f, b, sf}
   var wrap = document.getElementById("fretWrap");
   wrap.innerHTML = "";
-  var base = chordName.replace(/\/.*$/,"");
-  var chord = GUITAR_CHORDS[base] || GUITAR_CHORDS[parsed.root] || null;
-  if (!chord) {
-    var p = document.createElement("p");
-    p.style = "text-align:center;color:var(--text3);font-size:13px;padding:16px;";
-    p.textContent = "No guitar diagram for " + chordName;
-    wrap.appendChild(p); return;
+  if (!fingering) {
+    wrap.innerHTML = '<p style="text-align:center;color:var(--text3);font-size:13px;padding:16px;">No guitar diagram available</p>';
+    return;
   }
   var strings = 6, frets = 5, cw = 38, ch = 28;
-  var pl = 28, pt = 26, W = pl + cw * (strings-1) + 20, H = pt + ch * frets + 20;
+  var pl = 28, pt = 26, W = pl + cw * (strings-1) + 20, H = pt + ch * frets + 30;
+  var startFret = fingering.sf || 1;
   var ns = ["e","B","G","D","A","E"];
   var svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
   svg.setAttribute("width",W); svg.setAttribute("height",H);
@@ -1183,7 +1232,12 @@ function drawGuitar(chordName, parsed) {
     Object.keys(attrs).forEach(function(k) { e.setAttribute(k,attrs[k]); });
     if (txt !== undefined) e.textContent = txt; return e;
   }
-  svg.appendChild(el("rect",{x:pl-2,y:pt-4,width:cw*(strings-1)+4,height:4,fill:tc,rx:1}));
+  // Nut or start fret indicator
+  if (startFret === 1) {
+    svg.appendChild(el("rect",{x:pl-2,y:pt-5,width:cw*(strings-1)+4,height:5,fill:tc,rx:1}));
+  } else {
+    svg.appendChild(el("text",{x:pl-6,y:pt+ch*0.6,"font-size":9,"text-anchor":"end",fill:tc+"99"},startFret+"fr"));
+  }
   for (var f = 0; f <= frets; f++) {
     var y = pt + f * ch;
     svg.appendChild(el("line",{x1:pl,y1:y,x2:pl+cw*(strings-1),y2:y,stroke:bc,"stroke-width":1.5}));
@@ -1193,22 +1247,39 @@ function drawGuitar(chordName, parsed) {
     svg.appendChild(el("line",{x1:x,y1:pt,x2:x,y2:pt+ch*frets,stroke:tc,"stroke-width":1}));
     svg.appendChild(el("text",{x:x,y:pt+ch*frets+14,"font-size":9,"text-anchor":"middle",fill:tc+"88"},ns[s]));
   }
-  if (chord.b) {
-    var brow = chord.b, bx1 = pl, bx2 = pl + cw * (strings-1), by = pt + (brow - 0.5) * ch;
-    svg.appendChild(el("rect",{x:bx1,y:by-9,width:bx2-bx1,height:18,rx:9,fill:ac}));
+  if (fingering.b) {
+    var barreFret = fingering.b - startFret + 1;
+    if (barreFret >= 1 && barreFret <= frets) {
+      var by = pt + (barreFret - 0.5) * ch;
+      svg.appendChild(el("rect",{x:pl,y:by-9,width:cw*(strings-1),height:18,rx:9,fill:ac}));
+    }
   }
-  chord.f.forEach(function(fret, si) {
+  fingering.f.forEach(function(fret, si) {
     var sx = pl + si * cw;
     if (fret < 0) {
-      svg.appendChild(el("text",{x:sx,y:pt-8,"font-size":11,"text-anchor":"middle",fill:tc+"66"},"x"));
+      svg.appendChild(el("text",{x:sx,y:pt-8,"font-size":12,"text-anchor":"middle",fill:tc+"66"},"x"));
     } else if (fret === 0) {
       svg.appendChild(el("circle",{cx:sx,cy:pt-9,r:5,fill:"none",stroke:ac,"stroke-width":1.5}));
-    } else if (fret <= frets) {
-      var fy = pt + (fret - 0.5) * ch;
-      svg.appendChild(el("circle",{cx:sx,cy:fy,r:11,fill:ac}));
+    } else {
+      var relFret = fret - startFret + 1;
+      if (relFret >= 1 && relFret <= frets) {
+        var fy = pt + (relFret - 0.5) * ch;
+        svg.appendChild(el("circle",{cx:sx,cy:fy,r:11,fill:ac}));
+      }
     }
   });
   wrap.appendChild(svg);
+}
+
+function drawGuitar(chordName, parsed) {
+  var base = chordName.replace(/\/.*$/,"");
+  var fingerings = GUITAR_CHORDS[base] || GUITAR_CHORDS[parsed.root] || null;
+  if (!fingerings) {
+    var wrap = document.getElementById("fretWrap");
+    wrap.innerHTML = '<p style="text-align:center;color:var(--text3);font-size:13px;padding:16px;">No guitar diagram for ' + chordName + '</p>';
+    return;
+  }
+  drawGuitarFingering(fingerings[0]);
 }
 
 function getVoicings(parsed) {
@@ -1265,21 +1336,43 @@ function getVoicings(parsed) {
 function drawVars(chordName, parsed) {
   var pills = document.getElementById("varPills");
   pills.innerHTML = "";
-  var voicings = getVoicings(parsed);
-  voicings.forEach(function(v, idx) {
-    var pill = document.createElement("button");
-    pill.className = "var-pill" + (idx === 0 ? " active" : "");
-    pill.textContent = v.label;
-    (function(notes) {
-      pill.onclick = function() {
-        document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
-        pill.classList.add("active");
-        if (instrument === "piano") drawPiano(notes);
-        document.getElementById("modalNotes").textContent = notes.map(function(n) { return NOTES[n]; }).join(" - ");
-      };
-    })(v.notes);
-    pills.appendChild(pill);
-  });
+
+  if (instrument === "guitar") {
+    // Show different fingering positions for guitar
+    var base = chordName.replace(/\/.*$/,"");
+    var fingerings = GUITAR_CHORDS[base] || GUITAR_CHORDS[parsed.root] || null;
+    if (!fingerings || fingerings.length <= 1) return; // nothing to show
+    fingerings.forEach(function(fing, idx) {
+      var pill = document.createElement("button");
+      pill.className = "var-pill" + (idx === 0 ? " active" : "");
+      pill.textContent = fing.label;
+      (function(f) {
+        pill.onclick = function() {
+          document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
+          pill.classList.add("active");
+          drawGuitarFingering(f);
+        };
+      })(fing);
+      pills.appendChild(pill);
+    });
+  } else {
+    // Show piano voicings/inversions
+    var voicings = getVoicings(parsed);
+    voicings.forEach(function(v, idx) {
+      var pill = document.createElement("button");
+      pill.className = "var-pill" + (idx === 0 ? " active" : "");
+      pill.textContent = v.label;
+      (function(notes) {
+        pill.onclick = function() {
+          document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
+          pill.classList.add("active");
+          drawPiano(notes);
+          document.getElementById("modalNotes").textContent = notes.map(function(n) { return NOTES[n]; }).join(" - ");
+        };
+      })(v.notes);
+      pills.appendChild(pill);
+    });
+  }
 }
 
 function closeChordModal(e) {
@@ -1300,6 +1393,12 @@ function closeChordModal(e) {
 renderRecent();
 document.getElementById("searchInput").addEventListener("keydown", function(e) {
   if (e.key === "Enter") doSearch();
+});
+// Sync autoscroll position when user manually scrolls
+document.getElementById("chordScroll").addEventListener("scroll", function() {
+  if (scrolling && Math.abs(this.scrollTop - scrollAccumulated) > 8) {
+    scrollAccumulated = this.scrollTop;
+  }
 });
 
 
