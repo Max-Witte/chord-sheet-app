@@ -1102,63 +1102,124 @@ var CHORD_DEFS = {
 };
 var WHITE_NOTES = [0,2,4,5,7,9,11];
 var BLACK_POS = {1:22,3:60,6:136,8:174,10:212};
-// Each chord has an array of fingerings: {label, f:[e,B,G,D,A,E], b:barre, sf:startFret}
+// Guitar chord fingerings: {label, f:[e,B,G,D,A,E], b:barre fret, sf:start fret for display}
 var GUITAR_CHORDS = {
-  "C":  [{label:"Open",    f:[0,1,0,2,3,-1]},
-         {label:"Barre 3", f:[3,5,5,5,3,3],b:3},
-         {label:"Hi 8",    f:[8,8,9,10,10,8],b:8,sf:7}],
-  "Cm": [{label:"Barre 3", f:[3,4,5,5,3,3],b:3},
-         {label:"Barre 8", f:[8,8,8,10,10,8],b:8,sf:7}],
-  "C7": [{label:"Open",    f:[0,1,3,2,3,-1]},
-         {label:"Barre 3", f:[3,5,3,5,3,3],b:3}],
-  "D":  [{label:"Open",    f:[2,3,2,0,-1,-1]},
-         {label:"Barre 5", f:[5,7,7,7,5,5],b:5,sf:4}],
-  "Dm": [{label:"Open",    f:[1,3,2,0,-1,-1]},
-         {label:"Barre 5", f:[5,6,7,7,5,5],b:5,sf:4}],
-  "D7": [{label:"Open",    f:[2,1,2,0,-1,-1]},
-         {label:"Barre 5", f:[5,7,5,7,5,5],b:5,sf:4}],
-  "E":  [{label:"Open",    f:[0,0,1,2,2,0]},
-         {label:"Barre 7", f:[7,9,9,9,7,7],b:7,sf:6}],
-  "Em": [{label:"Open",    f:[0,0,0,2,2,0]},
-         {label:"Barre 7", f:[7,8,9,9,7,7],b:7,sf:6}],
-  "E7": [{label:"Open",    f:[0,0,1,0,2,0]},
-         {label:"Alt",     f:[0,3,1,2,2,0]}],
-  "F":  [{label:"Barre 1", f:[1,1,2,3,3,1],b:1},
-         {label:"Mini",    f:[1,1,2,3,-1,-1]},
-         {label:"Barre 8", f:[8,10,10,10,8,8],b:8,sf:7}],
-  "Fm": [{label:"Barre 1", f:[1,1,1,3,3,1],b:1},
-         {label:"Barre 8", f:[8,9,10,10,8,8],b:8,sf:7}],
-  "F7": [{label:"Barre 1", f:[1,1,2,1,3,1],b:1},
-         {label:"Alt",     f:[1,3,1,2,3,1],b:1}],
-  "G":  [{label:"Open",    f:[3,0,0,0,2,3]},
-         {label:"Alt",     f:[3,3,0,0,2,3]},
-         {label:"Barre 3", f:[3,5,5,4,3,3],b:3}],
-  "Gm": [{label:"Barre 3", f:[3,3,3,5,5,3],b:3},
-         {label:"Barre 10",f:[10,11,12,12,10,10],b:10,sf:9}],
-  "G7": [{label:"Open",    f:[1,0,0,0,2,3]},
-         {label:"Barre 3", f:[3,5,3,4,3,3],b:3}],
-  "A":  [{label:"Open",    f:[0,2,2,2,0,-1]},
-         {label:"Barre",   f:[0,2,2,2,0,-1]},
-         {label:"Barre 5", f:[5,7,7,6,5,5],b:5,sf:4}],
-  "Am": [{label:"Open",    f:[0,1,2,2,0,-1]},
-         {label:"Barre 5", f:[5,5,5,7,7,5],b:5,sf:4}],
-  "A7": [{label:"Open",    f:[0,2,0,2,0,-1]},
-         {label:"Barre 5", f:[5,7,5,6,5,5],b:5,sf:4}],
-  "B":  [{label:"Barre 2", f:[2,4,4,4,2,2],b:2},
-         {label:"Barre 7", f:[7,9,9,8,7,7],b:7,sf:6}],
-  "Bm": [{label:"Barre 2", f:[2,3,4,4,2,2],b:2},
-         {label:"Mini",    f:[2,3,4,4,-1,-1]},
-         {label:"Barre 7", f:[7,7,7,9,9,7],b:7,sf:6}],
-  "B7": [{label:"Open",    f:[0,2,1,2,2,-1]},
-         {label:"Barre 7", f:[7,9,7,8,7,7],b:7,sf:6}],
-  "Bb": [{label:"Barre 1", f:[1,1,3,3,3,1],b:1},
-         {label:"Barre 6", f:[6,8,8,7,6,6],b:6,sf:5}],
-  "A#": [{label:"Barre 1", f:[1,1,3,3,3,1],b:1},
-         {label:"Barre 6", f:[6,8,8,7,6,6],b:6,sf:5}],
-  "F#": [{label:"Barre 2", f:[2,2,3,4,4,2],b:2},
-         {label:"Barre 9", f:[9,11,11,11,9,9],b:9,sf:8}],
-  "F#m":[{label:"Barre 2", f:[2,2,2,4,4,2],b:2},
-         {label:"Barre 9", f:[9,10,11,11,9,9],b:9,sf:8}]
+  "C":  [{label:"Open",     f:[0,1,0,2,3,-1]},
+         {label:"No capo",  f:[0,1,0,2,3,3]},
+         {label:"Barre 3",  f:[3,5,5,5,3,3],b:3,sf:2},
+         {label:"Barre 8",  f:[8,8,9,10,10,8],b:8,sf:7},
+         {label:"High 12",  f:[12,13,12,14,15,-1],sf:11}],
+  "Cm": [{label:"Barre 3",  f:[3,4,5,5,3,3],b:3,sf:2},
+         {label:"Barre 8",  f:[8,8,8,10,10,8],b:8,sf:7},
+         {label:"Alt 5",    f:[5,4,5,5,-1,-1],sf:4}],
+  "C7": [{label:"Open",     f:[0,1,3,2,3,-1]},
+         {label:"Barre 3",  f:[3,5,3,5,3,3],b:3,sf:2},
+         {label:"Alt",      f:[0,1,0,2,3,-1]}],
+  "Cmaj7":[{label:"Open",   f:[0,0,0,2,3,-1]},
+           {label:"Alt",    f:[0,0,0,2,3,3]}],
+  "D":  [{label:"Open",     f:[2,3,2,0,-1,-1]},
+         {label:"Barre 5",  f:[5,7,7,7,5,5],b:5,sf:4},
+         {label:"Barre 10", f:[10,12,12,12,10,10],b:10,sf:9},
+         {label:"Alt open", f:[2,3,2,0,0,-1]}],
+  "Dm": [{label:"Open",     f:[1,3,2,0,-1,-1]},
+         {label:"Barre 5",  f:[5,6,7,7,5,5],b:5,sf:4},
+         {label:"Barre 10", f:[10,11,12,12,10,10],b:10,sf:9}],
+  "D7": [{label:"Open",     f:[2,1,2,0,-1,-1]},
+         {label:"Barre 5",  f:[5,7,5,7,5,5],b:5,sf:4}],
+  "Dmaj7":[{label:"Open",   f:[2,2,2,0,-1,-1]},
+           {label:"Alt",    f:[2,2,2,0,0,-1]}],
+  "E":  [{label:"Open",     f:[0,0,1,2,2,0]},
+         {label:"Barre 7",  f:[7,9,9,9,7,7],b:7,sf:6},
+         {label:"Barre 12", f:[12,14,14,14,12,12],b:12,sf:11},
+         {label:"Alt",      f:[0,0,1,2,2,3]}],
+  "Em": [{label:"Open",     f:[0,0,0,2,2,0]},
+         {label:"Alt open", f:[0,0,0,2,2,3]},
+         {label:"Barre 7",  f:[7,8,9,9,7,7],b:7,sf:6},
+         {label:"Barre 12", f:[12,13,14,14,12,12],b:12,sf:11}],
+  "E7": [{label:"Open",     f:[0,0,1,0,2,0]},
+         {label:"Alt",      f:[0,3,1,2,2,0]},
+         {label:"Barre 7",  f:[7,9,7,8,7,7],b:7,sf:6}],
+  "Emaj7":[{label:"Open",   f:[0,0,1,1,2,0]},
+           {label:"Alt",    f:[4,4,4,6,7,0]}],
+  "F":  [{label:"Barre 1",  f:[1,1,2,3,3,1],b:1},
+         {label:"Mini",     f:[1,1,2,3,-1,-1]},
+         {label:"Open alt", f:[1,1,2,0,-1,-1]},
+         {label:"Barre 8",  f:[8,10,10,10,8,8],b:8,sf:7},
+         {label:"High 13",  f:[13,13,14,15,15,13],b:13,sf:12}],
+  "Fm": [{label:"Barre 1",  f:[1,1,1,3,3,1],b:1},
+         {label:"Mini",     f:[1,1,1,3,-1,-1]},
+         {label:"Barre 8",  f:[8,9,10,10,8,8],b:8,sf:7}],
+  "F7": [{label:"Barre 1",  f:[1,1,2,1,3,1],b:1},
+         {label:"Alt",      f:[1,3,1,2,3,1],b:1},
+         {label:"Barre 8",  f:[8,10,8,9,8,8],b:8,sf:7}],
+  "Fmaj7":[{label:"Open",   f:[0,1,2,3,3,1],b:1},
+           {label:"Alt",    f:[0,1,1,2,3,-1]}],
+  "G":  [{label:"Open",     f:[3,0,0,0,2,3]},
+         {label:"Alt",      f:[3,3,0,0,2,3]},
+         {label:"Alt 2",    f:[3,3,0,0,0,3]},
+         {label:"Barre 3",  f:[3,5,5,4,3,3],b:3,sf:2},
+         {label:"Barre 10", f:[10,12,12,12,10,10],b:10,sf:9}],
+  "Gm": [{label:"Barre 3",  f:[3,3,3,5,5,3],b:3,sf:2},
+         {label:"Barre 10", f:[10,11,12,12,10,10],b:10,sf:9},
+         {label:"Alt",      f:[3,4,5,5,3,3],b:3,sf:2}],
+  "G7": [{label:"Open",     f:[1,0,0,0,2,3]},
+         {label:"Alt open", f:[1,0,0,2,2,3]},
+         {label:"Barre 3",  f:[3,5,3,4,3,3],b:3,sf:2},
+         {label:"Barre 10", f:[10,12,10,12,10,10],b:10,sf:9}],
+  "Gmaj7":[{label:"Open",   f:[2,0,0,0,2,3]},
+           {label:"Alt",    f:[2,0,0,0,0,3]}],
+  "A":  [{label:"Open",     f:[0,2,2,2,0,-1]},
+         {label:"Alt open", f:[0,2,2,2,0,0]},
+         {label:"Barre 5",  f:[5,7,7,6,5,5],b:5,sf:4},
+         {label:"Barre 12", f:[12,14,14,14,12,12],b:12,sf:11}],
+  "Am": [{label:"Open",     f:[0,1,2,2,0,-1]},
+         {label:"Alt open", f:[0,1,2,2,0,0]},
+         {label:"Barre 5",  f:[5,5,5,7,7,5],b:5,sf:4},
+         {label:"Barre 12", f:[12,13,14,14,12,12],b:12,sf:11}],
+  "A7": [{label:"Open",     f:[0,2,0,2,0,-1]},
+         {label:"Alt",      f:[0,2,0,2,0,0]},
+         {label:"Barre 5",  f:[5,7,5,6,5,5],b:5,sf:4}],
+  "Amaj7":[{label:"Open",   f:[0,2,1,2,0,-1]},
+           {label:"Alt",    f:[0,2,1,2,0,0]}],
+  "B":  [{label:"Barre 2",  f:[2,4,4,4,2,2],b:2,sf:1},
+         {label:"Alt open", f:[2,4,4,4,-1,-1],sf:1},
+         {label:"Barre 7",  f:[7,9,9,8,7,7],b:7,sf:6}],
+  "Bm": [{label:"Barre 2",  f:[2,3,4,4,2,2],b:2,sf:1},
+         {label:"Mini",     f:[2,3,4,4,-1,-1],sf:1},
+         {label:"Barre 7",  f:[7,7,7,9,9,7],b:7,sf:6},
+         {label:"Alt",      f:[2,3,4,4,2,-1],b:2,sf:1}],
+  "B7": [{label:"Open",     f:[0,2,1,2,2,-1]},
+         {label:"Alt open", f:[2,0,2,1,2,-1]},
+         {label:"Barre 7",  f:[7,9,7,8,7,7],b:7,sf:6}],
+  "Bmaj7":[{label:"Barre 2",f:[2,4,3,4,2,2],b:2,sf:1},
+           {label:"Alt",    f:[2,4,3,4,-1,-1],sf:1}],
+  "Bb": [{label:"Barre 1",  f:[1,1,3,3,3,1],b:1},
+         {label:"Alt",      f:[1,3,3,2,1,1],b:1},
+         {label:"Barre 6",  f:[6,8,8,7,6,6],b:6,sf:5}],
+  "A#": [{label:"Barre 1",  f:[1,1,3,3,3,1],b:1},
+         {label:"Alt",      f:[1,3,3,2,1,1],b:1},
+         {label:"Barre 6",  f:[6,8,8,7,6,6],b:6,sf:5}],
+  "Eb": [{label:"Barre 3",  f:[3,4,3,1,3,3],b:3,sf:2},
+         {label:"Barre 6",  f:[6,8,8,7,6,6],b:6,sf:5}],
+  "D#": [{label:"Barre 3",  f:[3,4,3,1,3,3],b:3,sf:2},
+         {label:"Barre 6",  f:[6,8,8,7,6,6],b:6,sf:5}],
+  "F#": [{label:"Barre 2",  f:[2,2,3,4,4,2],b:2,sf:1},
+         {label:"Alt",      f:[2,2,3,4,-1,-1],sf:1},
+         {label:"Barre 9",  f:[9,11,11,11,9,9],b:9,sf:8}],
+  "F#m":[{label:"Barre 2",  f:[2,2,2,4,4,2],b:2,sf:1},
+         {label:"Mini",     f:[2,2,2,4,-1,-1],sf:1},
+         {label:"Barre 9",  f:[9,10,11,11,9,9],b:9,sf:8}],
+  "C#": [{label:"Barre 4",  f:[4,6,6,6,4,4],b:4,sf:3},
+         {label:"Barre 9",  f:[9,11,11,11,9,9],b:9,sf:8}],
+  "C#m":[{label:"Barre 4",  f:[4,5,6,6,4,4],b:4,sf:3},
+         {label:"Barre 9",  f:[9,10,11,11,9,9],b:9,sf:8}],
+  "G#": [{label:"Barre 4",  f:[4,4,5,6,6,4],b:4,sf:3},
+         {label:"Barre 11", f:[11,13,13,13,11,11],b:11,sf:10}],
+  "Ab": [{label:"Barre 4",  f:[4,4,5,6,6,4],b:4,sf:3},
+         {label:"Barre 11", f:[11,13,13,13,11,11],b:11,sf:10}],
+  "G#m":[{label:"Barre 4",  f:[4,4,4,6,6,4],b:4,sf:3},
+         {label:"Barre 11", f:[11,12,13,13,11,11],b:11,sf:10}],
+  "Abm":[{label:"Barre 4",  f:[4,4,4,6,6,4],b:4,sf:3}]
 };
 
 function parseChord(chord) {
@@ -1179,16 +1240,27 @@ function showChordModal(chordName) {
   var parsed = parseChord(chordName);
   if (!parsed) return;
   document.getElementById("modalTitle").textContent = chordName;
-  document.getElementById("modalNotes").textContent = parsed.noteNames.join(" - ");
   document.getElementById("pianoWrap").style.display = instrument === "piano" ? "" : "none";
   document.getElementById("fretWrap").style.display = instrument === "guitar" ? "" : "none";
-  if (instrument === "piano") drawPiano(parsed.notes);
-  else drawGuitar(chordName, parsed);
+  if (instrument === "piano") {
+    // Root position voicing
+    var intervals = CHORD_DEFS[parsed.quality] || CHORD_DEFS[""];
+    var rootNotes = intervals.map(function(i) { return parsed.rootIdx + i; });
+    drawPiano(rootNotes);
+    document.getElementById("modalNotes").textContent = rootNotes.map(function(n) {
+      return NOTES[n % 12];
+    }).join(" - ");
+  } else {
+    drawGuitar(chordName, parsed);
+    document.getElementById("modalNotes").textContent = parsed.noteNames.join(" - ");
+  }
   drawVars(chordName, parsed);
   document.getElementById("chordOverlay").classList.add("open");
 }
 
 function drawPiano(activeNotes) {
+  // activeNotes: array of semitone offsets from C3
+  // 0=C3,1=C#3,2=D3,...,11=B3, 12=C4,13=C#4,...,23=B4
   var wrap = document.getElementById("pianoWrap");
   wrap.innerHTML = "";
   var totalW = 7 * 2 * 38 + 4;
@@ -1196,14 +1268,21 @@ function drawPiano(activeNotes) {
   piano.className = "piano";
   piano.style.width = totalW + "px";
   wrap.appendChild(piano);
+  // WHITE_NOTES within each octave: [0,2,4,5,7,9,11] = C D E F G A B
+  // BLACK_POS: {1:22,3:60,6:136,8:174,10:212} offsets within octave
   for (var oct = 0; oct < 2; oct++) {
     var ox = oct * 7 * 38;
+    var octOffset = oct * 12; // semitone start of this octave
     WHITE_NOTES.forEach(function(n, wi) {
-      var k = document.createElement("div"); k.className = "wk" + (activeNotes.indexOf(n) >= 0 ? " on" : "");
+      var absNote = octOffset + n;
+      var on = activeNotes.indexOf(absNote) >= 0;
+      var k = document.createElement("div"); k.className = "wk" + (on ? " on" : "");
       k.style.left = (ox + wi * 38) + "px"; piano.appendChild(k);
     });
     Object.keys(BLACK_POS).forEach(function(n) {
-      var k = document.createElement("div"); k.className = "bk" + (activeNotes.indexOf(parseInt(n)) >= 0 ? " on" : "");
+      var absNote = octOffset + parseInt(n);
+      var on = activeNotes.indexOf(absNote) >= 0;
+      var k = document.createElement("div"); k.className = "bk" + (on ? " on" : "");
       k.style.left = (ox + BLACK_POS[n]) + "px"; piano.appendChild(k);
     });
   }
@@ -1283,52 +1362,47 @@ function drawGuitar(chordName, parsed) {
 }
 
 function getVoicings(parsed) {
-  // Returns array of {label, notes} for different voicings/inversions of the chord
-  var root = parsed.rootIdx;
+  // Piano has 2 octaves: keys 0-13 = white keys C3 to B3, 14-27 = C4 to B4
+  // We use actual key offsets (0=C3, 1=C#3, 2=D3 ... 12=C4, 13=C#4 ...)
+  var root = parsed.rootIdx; // 0=C, 1=C#, 2=D, ... 11=B
   var intervals = CHORD_DEFS[parsed.quality] || CHORD_DEFS[""];
   var voicings = [];
 
-  // Root position
+  // Helper: build notes starting at a given octave offset (0=octave 3, 12=octave 4)
+  function buildVoicing(semitoneOffsets) {
+    return semitoneOffsets.map(function(i) { return root + i; });
+  }
+
+  // Root position - all notes in octave 3 area
   voicings.push({
-    label: "Root",
-    notes: intervals.map(function(i) { return (root + i) % 12; })
+    label: "Root pos",
+    notes: buildVoicing(intervals)
   });
 
-  // First inversion (move root to top)
+  // 1st inversion - bottom note moved up an octave
   if (intervals.length >= 2) {
     var inv1 = intervals.slice(1).concat([intervals[0] + 12]);
-    var base1 = inv1[0];
-    voicings.push({
-      label: "1st inv",
-      notes: inv1.map(function(i) { return (root + i) % 12; })
-    });
+    voicings.push({ label: "1st inv", notes: buildVoicing(inv1) });
   }
 
-  // Second inversion (move bottom two to top)
+  // 2nd inversion - bottom two notes moved up an octave
   if (intervals.length >= 3) {
-    var inv2 = intervals.slice(2).concat([intervals[0] + 12, intervals[1] + 12]);
-    voicings.push({
-      label: "2nd inv",
-      notes: inv2.map(function(i) { return (root + i) % 12; })
-    });
+    var inv2 = intervals.slice(2).concat([intervals[0]+12, intervals[1]+12]);
+    voicings.push({ label: "2nd inv", notes: buildVoicing(inv2) });
   }
 
-  // Third inversion for 7th chords
+  // 3rd inversion for 7th chords
   if (intervals.length >= 4) {
     var inv3 = intervals.slice(3).concat([intervals[0]+12, intervals[1]+12, intervals[2]+12]);
-    voicings.push({
-      label: "3rd inv",
-      notes: inv3.map(function(i) { return (root + i) % 12; })
-    });
+    voicings.push({ label: "3rd inv", notes: buildVoicing(inv3) });
   }
 
-  // Open voicing (spread notes across wider range)
-  voicings.push({
-    label: "Open",
-    notes: intervals.map(function(i, idx) {
-      return (root + i + (idx % 2 === 1 ? 12 : 0)) % 12;
-    })
-  });
+  // Open voicing - spread across both octaves (root low, rest up)
+  var open = [intervals[0]].concat(intervals.slice(1).map(function(i) { return i + 12; }));
+  voicings.push({ label: "Open", notes: buildVoicing(open) });
+
+  // Close position in octave 4 (higher up the keyboard)
+  voicings.push({ label: "High pos", notes: buildVoicing(intervals.map(function(i) { return i + 12; })) });
 
   return voicings;
 }
@@ -1367,7 +1441,7 @@ function drawVars(chordName, parsed) {
           document.querySelectorAll(".var-pill").forEach(function(p) { p.classList.remove("active"); });
           pill.classList.add("active");
           drawPiano(notes);
-          document.getElementById("modalNotes").textContent = notes.map(function(n) { return NOTES[n]; }).join(" - ");
+          document.getElementById("modalNotes").textContent = notes.map(function(n) { return NOTES[n % 12]; }).join(" - ");
         };
       })(v.notes);
       pills.appendChild(pill);
