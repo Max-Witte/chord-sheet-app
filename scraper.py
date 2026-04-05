@@ -38,32 +38,98 @@ def _extract_store_data(html):
     return None
 
 
-def search_ug(title, artist):
-    query = quote(f"{title} {artist}")
-    url = f"https://www.ultimate-guitar.com/search.php?title={query}&type=Chords"
-    html = _fetch(url)
-    if not html:
+def _title_similarity(a: str, b: str) -> float:
+    """Return a 0-1 similarity score between two strings (case-insensitive)."""
+    a = re.sub(r"[^a-z0-9 ]", "", a.lower()).strip()
+    b = re.sub(r"[^a-z0-9 ]", "", b.lower()).strip()
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    # Jaccard similarity on word sets
+    sa, sb = set(a.split()), set(b.split())
+    intersection = sa & sb
+    union = sa | sb
+    return len(intersection) / len(union) if union else 0.0
+
+
+def search_ug(title, artist, pages=1):
+    """
+    Search UG for chord sheets.
+
+    Fixes vs original:
+    1. Passes title and artist as *separate* URL parameters so UG's own
+       search engine can match them correctly — previously both were jammed
+       into `title=`, which caused the wrong song to rank first.
+    2. Fetches up to `pages` pages of results (default 2) so songs that
+       only appear on page 2 (e.g. Christina Aguilera – Hurt) are found.
+    3. After collecting all raw results, re-ranks them by:
+         a. Title similarity to the requested title  (most important)
+         b. Artist similarity to the requested artist
+         c. UG rating × votes  (tiebreaker)
+       This prevents a high-rated song by the same artist from jumping
+       ahead of the actually requested song.
+    """
+    all_versions = []
+    seen_urls = set()
+
+    for page in range(1, pages + 1):
+        # Use separate title= and artist= params — UG supports both
+        params = f"title={quote(title)}&type=Chords"
+        if artist:
+            params += f"&artist={quote(artist)}"
+        if page > 1:
+            params += f"&page={page}"
+        url = f"https://www.ultimate-guitar.com/search.php?{params}"
+
+        html = _fetch(url)
+        if not html:
+            break
+        data = _extract_store_data(html)
+        if not data:
+            print(f"UG: could not extract store data (page {page})")
+            break
+
+        results = data.get("store", {}).get("page", {}).get("data", {}).get("results", [])
+        page_versions = []
+        for r in results:
+            if r.get("type") != "Chords":
+                continue
+            tab_url = r.get("tab_url", "")
+            if tab_url in seen_urls:
+                continue
+            seen_urls.add(tab_url)
+            page_versions.append({
+                "title": r.get("song_name", title),
+                "artist": r.get("artist_name", artist),
+                "url": tab_url,
+                "votes": r.get("votes", 0),
+                "rating": r.get("rating", 0),
+                "version": r.get("version", 1),
+            })
+
+        print(f"UG search page {page}: {len(page_versions)} chord results")
+        all_versions.extend(page_versions)
+
+        # Stop early if UG returned fewer results than a full page
+        if len(results) < 20:
+            break
+
+    if not all_versions:
+        print("UG: no chord versions found")
         return []
-    data = _extract_store_data(html)
-    if not data:
-        print("UG: could not extract store data")
-        return []
-    results = data.get("store", {}).get("page", {}).get("data", {}).get("results", [])
-    versions = []
-    for r in results:
-        if r.get("type") != "Chords":
-            continue
-        versions.append({
-            "title": r.get("song_name", title),
-            "artist": r.get("artist_name", artist),
-            "url": r.get("tab_url", ""),
-            "votes": r.get("votes", 0),
-            "rating": r.get("rating", 0),
-            "version": r.get("version", 1),
-        })
-    versions.sort(key=lambda x: float(x.get("rating") or 0) * int(x.get("votes") or 0), reverse=True)
-    print(f"UG: found {len(versions)} chord versions")
-    return versions[:8]
+
+    # Re-rank: prioritise correct title+artist match, use rating×votes as tiebreaker
+    def rank_score(v):
+        title_sim = _title_similarity(v["title"], title)
+        artist_sim = _title_similarity(v["artist"], artist) if artist else 0.5
+        popularity = float(v.get("rating") or 0) * int(v.get("votes") or 0)
+        # Weights: title match is most critical, artist second, popularity last
+        return (title_sim * 10) + (artist_sim * 5) + (popularity / 100000)
+
+    all_versions.sort(key=rank_score, reverse=True)
+    print(f"UG: {len(all_versions)} total chord versions after {pages} page(s)")
+    return all_versions[:8]
 
 
 def fetch_ug_chords(tab_url):
