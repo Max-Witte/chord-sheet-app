@@ -958,7 +958,16 @@ function xposeChord(chord, offset) {
   if (!m) return chord;
   var idx = NOTES.indexOf(m[1]);
   if (idx < 0) return chord;
-  return NOTES[(idx + offset + 12) % 12] + m[2];
+  var suffix = m[2];
+  // Transpose bass note in slash chords (e.g. C/E → D/F#)
+  var slashMatch = suffix.match(/^(.*?)\/([A-G][b#]?)(.*)$/);
+  if (slashMatch) {
+    var bassIdx = NOTES.indexOf(slashMatch[2]);
+    if (bassIdx >= 0) {
+      suffix = slashMatch[1] + "/" + NOTES[(bassIdx + offset + 12) % 12] + slashMatch[3];
+    }
+  }
+  return NOTES[(idx + offset + 12) % 12] + suffix;
 }
 
 function renderLyrics(sections) {
