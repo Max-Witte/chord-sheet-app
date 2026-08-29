@@ -6,19 +6,65 @@ import os
 from html import unescape
 
 SCRAPEOPS_API_KEY = os.environ.get("SCRAPEOPS_API_KEY", "")
+PROXY_URL = os.environ.get("PROXY_URL", "")  # Cloudflare Worker URL, e.g. https://chord-sheet-proxy.xxx.workers.dev
+
+
+def _build_proxy_url(base_proxy_url: str, target_url: str) -> str:
+    base = base_proxy_url.strip()
+    if base.endswith("?url=") or base.endswith("&url="):
+        return f"{base}{quote(target_url, safe='')}"
+    if base.endswith("?url") or base.endswith("&url"):
+        return f"{base}={quote(target_url, safe='')}"
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}url={quote(target_url, safe='')}"
 
 
 def _fetch(url):
-    if not SCRAPEOPS_API_KEY:
-        raise RuntimeError("SCRAPEOPS_API_KEY is not set.")
-    proxy_url = "https://proxy.scrapeops.io/v1/"
-    params = {"api_key": SCRAPEOPS_API_KEY, "url": url, "render_js": "false"}
-    res = requests.get(proxy_url, params=params, timeout=30)
-    print(f"ScrapeOps status for {url[:60]}: {res.status_code}")
-    if not res.ok:
-        print(f"ScrapeOps error: {res.text[:200]}")
-        return None
-    return res.text
+    # 1. Custom Proxy / Cloudflare Worker (Free, 100k requests/day)
+    if PROXY_URL:
+        target_url = _build_proxy_url(PROXY_URL, url)
+        try:
+            res = requests.get(target_url, timeout=20)
+            print(f"Proxy status for {url[:60]}: {res.status_code}")
+            if res.ok and len(res.text) > 200:
+                return res.text
+            else:
+                print(f"Proxy error ({res.status_code}): {res.text[:200]}")
+        except Exception as e:
+            print(f"Proxy request exception for {url[:60]}: {e}")
+
+    # 2. ScrapeOps (Fallback if API key provided)
+    if SCRAPEOPS_API_KEY:
+        try:
+            proxy_url = "https://proxy.scrapeops.io/v1/"
+            params = {"api_key": SCRAPEOPS_API_KEY, "url": url, "render_js": "false"}
+            res = requests.get(proxy_url, params=params, timeout=30)
+            print(f"ScrapeOps status for {url[:60]}: {res.status_code}")
+            if res.ok and len(res.text) > 200:
+                return res.text
+            else:
+                print(f"ScrapeOps error ({res.status_code}): {res.text[:200]}")
+        except Exception as e:
+            print(f"ScrapeOps request exception for {url[:60]}: {e}")
+
+    # 3. Direct fetch (works locally or if not blocked)
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+        res = requests.get(url, headers=headers, timeout=15)
+        print(f"Direct fetch status for {url[:60]}: {res.status_code}")
+        if res.ok and len(res.text) > 200:
+            return res.text
+    except Exception as e:
+        print(f"Direct fetch exception for {url[:60]}: {e}")
+
+    if not PROXY_URL and not SCRAPEOPS_API_KEY:
+        print("Warning: Neither PROXY_URL nor SCRAPEOPS_API_KEY is configured.")
+
+    return None
 
 
 def _extract_store_data(html):

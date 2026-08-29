@@ -104,7 +104,10 @@ def root():
 @app.get("/debug")
 def debug():
     key = os.environ.get("SCRAPEOPS_API_KEY", "")
+    proxy = os.environ.get("PROXY_URL", "")
     return {
+        "proxy_url_set": bool(proxy),
+        "proxy_url_preview": proxy[:30] + "..." if proxy else "NOT SET",
         "scrapeops_key_set": bool(key),
         "scrapeops_key_prefix": key[:12] + "..." if key else "NOT SET",
         "database_url_set": bool(os.environ.get("DATABASE_URL")),
